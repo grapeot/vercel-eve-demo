@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "bundle": "vercel-eve-deep-research",
+  "target": "vercel-eve",
+  "sources": [
+    {
+      "id": "deep-research",
+      "type": "doc",
+      "source": "https://github.com/grapeot/context-infrastructure.git",
+      "ref": "3039ad36a2c0c85f84a853ccfe86246a41691cbb",
+      "rootSkill": "rules/skills/workflow_deep_research_survey.md",
+      "install": null,
+      "commands": [],
+      "credentials": [],
+      "networkAllow": []
+    },
+    {
+      "id": "tavily",
+      "type": "repo",
+      "source": "https://github.com/grapeot/tavily-skill.git",
+      "ref": "67db8f92b799ddd1af457dd3694f9064a0653538",
+      "rootSkill": "skills/skill_tavily.md",
+      "install": "uv pip install .",
+      "commands": [
+        "tavily-skill"
+      ],
+      "credentials": [
+        "TAVILY_API_KEY"
+      ],
+      "networkAllow": [
+        "api.tavily.com"
+      ]
+    }
+  ],
+  "installedSkills": [
+    {
+      "id": "deep-research",
+      "installedPath": "agent/skills/deep-research/SKILL.md",
+      "sha256": "af53ece4931e27be3c08eadd30f2b7b2b1f38ba7bf201ff8577b2302a6cca116"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+docs/
+tests/
+coverage/
+tmp/
+logs/
+.env*
+!.env.example

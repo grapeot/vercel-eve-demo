@@ -1,0 +1,49 @@
+{
+  "name": "vercel-eve-demo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "用 Vercel eve 验证 Markdown + CLI skills 可移植性的中文深度调研 Demo",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "dev:eve": "eve dev",
+    "build:eve": "eve build",
+    "build": "npm run build:eve && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:live": "RUN_LIVE_TESTS=1 node scripts/smoke-tavily-cli.mjs",
+    "test:eve": "node scripts/smoke-eve.mjs",
+    "test:eve:live": "RUN_LIVE_EVE_SMOKE=1 node scripts/smoke-eve-live.mjs",
+    "test:web": "node scripts/smoke-web.mjs",
+    "bundle": "node scripts/build-skill-bundle.mjs",
+    "benchmark:search": "node scripts/benchmark-web-search.mjs",
+    "init:private-access": "node scripts/init-private-access.mjs",
+    "check:public": "node scripts/check-public-content.mjs",
+    "verify": "npm run bundle && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:public"
+  },
+  "dependencies": {
+    "ai": "7.0.26",
+    "eve": "0.24.4",
+    "next": "16.2.6",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.2",
+    "eslint-config-next": "16.2.6",
+    "microsandbox": "^0.5.10",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

@@ -1,0 +1,48 @@
+# Working Notes
+
+## Changelog
+
+### 2026-07-16
+
+- 将产品重新定义为 owner-only Personal Research Workbench：localhost 为主要运行环境，临时 Vercel Pro deployment 通过 WAF IP allowlist + 256-bit challenge gate 保护；实际公网 IP 和 challenge secret 只进入 private config，不进入 repo。
+- 重写 PRD/RFC：最终交付改为 Sandbox `report.md` + HTML preview，加入 root/child event inspector、workspace file browser、feedback continuation、Turso artifact checkpoint 和完整 progressive-disclosure Skill Bundle。
+- 将 external-writing 的 app fork确定为 GPT-5.6 Sol 三遍成文：三个 sequential Eve built-in `agent` children 分别完成结构稿、自然重写和独立 QA；删除 Gemini/AGY、Antigravity 和 `gpt-image-2` 配图硬门槛。
+- 核对 Eve subagent/event/sandbox 语义：built-in child 拥有 fresh history/state 并共享 root Sandbox；child 详细事件需按 `childSessionId` 单独订阅；Vercel persistent Sandbox 跨 turn snapshot/resume，但历史 report 与 feedback 快照仍同步到 Turso。
+- 核对 Tavily runtime：推荐 authored typed tool 在可信 app runtime 直接调用 Tavily REST，localhost/Vercel 复用同一 TypeScript executor；不再把 key 注入 Sandbox env，也不让 CLI承担 Eve production transport。
+- 核对 Codex OAuth：localhost 可基于 OpenCode reference 做 owner-only experimental integration；没有找到任意第三方 Vercel Web callback/private Codex backend 的公开 contract，因此先将 Vercel full subscription inference 标记为待产品决策。
+- Owner 选择 Vercel 非官方 device flow 作为短期 personal evaluation 路径：RFC 增加 encrypted attempt/token、poll interval、Turso CAS refresh、kill switch、fail-closed 和部署后删除约束；不把这项风险接受推广到第二个用户。
+- 新增 `init:private-access`：自动检测当前公网 IPv4，并把 `/32` allowlist、两个独立的 32-byte challenge/cookie secrets 写入 mode `0600` 的 gitignored `.env.local`；脚本不打印 secret，实际 IP 不进入公开文件。
+- 修正 public scanner 对本地 secret 文件的判定：`.env*` 存在时必须被 Git ignore，而不是禁止开发机上存在；已验证 `.env.local` 权限为 `0600`、被 Git ignore，public scan 通过。
+- 核对 Eve 0.24.4 的模型路由：string model 走 Vercel AI Gateway，`step.started` 返回 provider-authored `LanguageModel` 可直接调用 provider，适合从外部加密 secret store 按 verified principal 临时解析 per-user BYOK；live provider object 不进入 durable serialization。
+- 核对 Superlinear Logto admin gate 与 OpenCode ChatGPT/Codex OAuth：推荐首版只支持用户 OpenAI API key，直接调用 OpenAI；不复用 OpenCode 的 localhost OAuth client、refresh token 和非公开 Codex transport，除非取得 OpenAI 对第三方 Web 服务的明确支持。
+- 新增可复现的 Parallel Search vs Tavily 十题 benchmark 脚本。Parallel smoke 成功，但完整 benchmark 被 Vercel AI Gateway 免费层模型 rate limit 阻断；脚本现会逐题落盘并记录局部失败，不把 429 当成搜索质量结论。
+- 完成 Context Infrastructure 在线服务化架构分析：将 filesystem 定位为 Agent 的统一工作界面、可检查投影视图和可退出格式，而不是账户、task、credential 与 workflow 的唯一真相源。
+- 提出 `Portable Context Kernel + Native Runtime Shells` 目标架构，比较 Eve / Cloudflare native adapter 与 per-user OpenCode Cell 两条路线，并定义 Context Bundle、task envelope、credential broker、correction pipeline 和跨 harness conformance tests。
+- 使用进程级 credential 注入完成 Tavily live smoke：1 个测试通过，真实 API 返回 source 与 usage；密钥未写入项目文件或测试输出。
+- 新增显式 opt-in 的 `test:eve:live`，带双重 credential 检查、全部 live 安全门和 120 秒硬超时。
+- 使用 AI Gateway 与 Tavily 的进程级 credential 注入完成 full Eve live smoke：真实模型调用 `search_web` 后正常到达 `session.waiting`；测试限制为最多 2 次搜索和 `$0.25` 应用预算。
+- 将 provider-managed `web_search` 覆盖为 authored Tavily CLI tool；固定 CLI source commit，并通过 Sandbox template bootstrap 安装。
+- 将 `deep-research` Markdown 保持为 baked-in static skill；`eve info` 只暴露 `web_search` authored tool 和 `deep-research` skill，built-in `bash` 已禁用。
+- Tavily CLI-only smoke 与 AI Gateway + Tavily CLI full smoke 均通过；full session 为 `wrun_01KXNRNSQ992SB71FAVNK9XJTY`。
+- 最终 `npm run verify`、mock Eve smoke、Web smoke 全部通过；Web smoke 额外断言 `web_search` 替换 framework tool、`deep-research` 可发现且 built-in `bash` 已禁用。
+
+### 2026-07-15
+
+- 建立 public-ready 独立项目骨架与中文 PRD、RFC、测试策略。
+- 固定 Next.js、eve、React、TypeScript 和 Node 版本。
+- 设计 mock-first、live fail-closed 的 deep research Demo。
+- 完成 Next.js 中文前端、eve Agent、Markdown skill、Tavily adapter、usage 估算和 Skill Bundle lock。
+- `npm run verify` 通过：lint、typecheck、4 个测试文件中的 12 个测试、eve/Next production build 和 public content scan 均成功。
+- `npm run test:eve` 通过：真实创建 mock session，执行 `search_web` 并到达 `session.waiting`。
+- `npm run test:web` 通过：首页、`/api/health` 和 Next 到 Eve 的 rewrite 均返回预期内容。
+- 初始化独立本地 Git repository；按约束未 commit、push、创建 GitHub repo 或部署。
+
+## Lessons Learned
+
+- eve `0.24.4` 要求 Node 24；本机默认 Node 22 只能通过 Node 24 runner 执行安装和验证。
+- eve mock model 必须显式提供 `modelContextWindowTokens`，否则 compaction compiler 无法启动。
+- `withEve()` 在本地和 Vercel 都会维护独立 eve service；不能只验证 Next build。
+- `placeholderAuth()` 在 Vercel Production 中主动拒绝请求，这是公开 Demo 的安全默认值。
+- stream 到 `session.waiting` 后仍保持连接，smoke test 必须主动终止读取，不能把 timeout 当作 turn 失败。
+- Next `16.2.6` 当前传递依赖 `postcss <8.5.10`，`npm audit --omit=dev` 报告 `GHSA-qx2v-qp2m-jg93`（moderate）。npm 给出的 `--force` 修复会降级到不兼容的 Next `9.3.3`，因此不采用；等待 Next 发布非破坏性修复后再升级并重跑完整验证。
+- microsandbox `0.5.10` 的 network transform 实测没有覆盖 Tavily SDK 已存在的 Authorization header，Tavily 返回 401。当前生产仍使用 Vercel Sandbox broker；本地改用 Docker env，并通过禁用模型 `bash` 限制 secret 暴露。不要把本地 fallback 复制到多租户生产环境。
