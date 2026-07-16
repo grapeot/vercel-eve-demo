@@ -1,19 +1,56 @@
 import { spawn } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const port = 4318;
 const origin = `http://127.0.0.1:${port}`;
 const logs = [];
+const tempDirectory = await mkdtemp(join(tmpdir(), "research-workbench-smoke-"));
+const smokeDistDirectory = `.next-smoke-${process.pid}`;
+const trackedNextFiles = new Map(
+  await Promise.all(
+    ["next-env.d.ts", "tsconfig.json"].map(async (path) => [
+      path,
+      await readFile(path, "utf8"),
+    ]),
+  ),
+);
+const challenge = randomBytes(32).toString("base64url");
+const serverEnv = {
+  ...process.env,
+  EVE_DEMO_MODE: "mock",
+  SEARCH_BACKEND: "mock",
+  ALLOW_LIVE_API: "0",
+  ACCESS_ALLOWED_CIDRS: "127.0.0.1/32",
+  ACCESS_CHALLENGE_SECRET: challenge,
+  ACCESS_COOKIE_SIGNING_KEY: randomBytes(32).toString("base64url"),
+  CREDENTIAL_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
+  TURSO_DATABASE_URL: `file:${join(tempDirectory, "smoke.sqlite")}`,
+  NEXT_DIST_DIR: smokeDistDirectory,
+};
+
+const migration = spawn(
+  process.execPath,
+  ["--import", "tsx", "scripts/migrate-database.ts"],
+  { env: serverEnv, stdio: ["ignore", "pipe", "pipe"] },
+);
+const migrationOutput = [];
+for (const stream of [migration.stdout, migration.stderr]) {
+  stream.on("data", (chunk) => migrationOutput.push(String(chunk)));
+}
+const migrationExitCode = await new Promise((resolve) => migration.once("exit", resolve));
+if (migrationExitCode !== 0) {
+  throw new Error(`Test database migration failed:\n${migrationOutput.join("")}`);
+}
+
 const child = spawn(
   "./node_modules/.bin/next",
   ["dev", "--hostname", "127.0.0.1", "--port", String(port)],
   {
-    env: {
-      ...process.env,
-      EVE_DEMO_MODE: "mock",
-      SEARCH_BACKEND: "mock",
-      ALLOW_LIVE_API: "0",
-    },
+    env: serverEnv,
     stdio: ["ignore", "pipe", "pipe"],
   },
 );
@@ -39,16 +76,43 @@ async function waitFor(path) {
 }
 
 async function run() {
-  const page = await waitFor("/");
+  const lockedPage = await waitFor("/");
+  const lockedHtml = await lockedPage.text();
+  if (!lockedHtml.includes("Private challenge")) {
+    throw new Error("未授权首页没有进入 owner challenge gate");
+  }
+
+  const denied = await fetch(`${origin}/api/access/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challenge: "wrong" }),
+  });
+  if (denied.status !== 401) throw new Error("错误 challenge 未被拒绝");
+
+  const authorized = await fetch(`${origin}/api/access/challenge`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ challenge }),
+  });
+  const setCookie = authorized.headers.get("set-cookie");
+  if (!authorized.ok || !setCookie) throw new Error("正确 challenge 未签发 cookie");
+  const cookie = setCookie.split(";", 1)[0];
+
+  const page = await fetch(`${origin}/`, { headers: { Cookie: cookie } });
   const html = await page.text();
   if (!html.includes("深度调研")) throw new Error("首页缺少产品标题");
 
-  const health = await (await waitFor("/api/health")).json();
+  const healthResponse = await fetch(`${origin}/api/health`, {
+    headers: { Cookie: cookie },
+  });
+  const health = await healthResponse.json();
   if (!health.ok || health.config?.mode !== "mock") {
     throw new Error("Next health 未报告 mock 模式");
   }
 
-  const eveInfo = await (await waitFor("/eve/v1/info")).json();
+  const eveInfo = await (
+    await fetch(`${origin}/eve/v1/info`, { headers: { Cookie: cookie } })
+  ).json();
   const webSearch = eveInfo.tools?.authored?.find((tool) => tool.name === "web_search");
   const hasDeepResearch = eveInfo.skills?.static?.some(
     (skill) => skill.name === "deep-research",
@@ -59,7 +123,7 @@ async function run() {
   if (!eveInfo.tools?.disabledFramework?.includes("bash")) {
     throw new Error("Eve manifest 未禁用 built-in bash");
   }
-  console.log("Web smoke passed: page + health + Eve rewrite");
+  console.log("Web smoke passed: owner gate + page + health + Eve rewrite");
 }
 
 try {
@@ -72,4 +136,9 @@ try {
   child.kill("SIGTERM");
   await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(2_000)]);
   if (child.exitCode === null) child.kill("SIGKILL");
+  await rm(tempDirectory, { recursive: true, force: true });
+  await rm(smokeDistDirectory, { recursive: true, force: true });
+  await Promise.all(
+    [...trackedNextFiles].map(([path, content]) => writeFile(path, content)),
+  );
 }

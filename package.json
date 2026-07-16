@@ -25,12 +25,16 @@
     "bundle": "node scripts/build-skill-bundle.mjs",
     "benchmark:search": "node scripts/benchmark-web-search.mjs",
     "init:private-access": "node scripts/init-private-access.mjs",
+    "init:turso": "node scripts/init-turso.mjs",
+    "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate-database.ts",
     "check:public": "node scripts/check-public-content.mjs",
     "verify": "npm run bundle && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:public"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "ai": "7.0.26",
     "eve": "0.24.4",
+    "ipaddr.js": "^2.4.0",
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
@@ -43,6 +47,7 @@
     "eslint": "9.39.2",
     "eslint-config-next": "16.2.6",
     "microsandbox": "^0.5.10",
+    "tsx": "^4.23.1",
     "typescript": "6.0.3",
     "vitest": "4.1.10"
   }

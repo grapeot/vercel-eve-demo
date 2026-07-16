@@ -37,7 +37,7 @@ const forbidden = [
 async function collect(directory) {
   const files = [];
   for (const entry of await readdir(directory)) {
-    if (ignored.has(entry)) continue;
+    if (ignored.has(entry) || entry.startsWith(".next-")) continue;
     const path = resolve(directory, entry);
     const info = await stat(path);
     if (info.isDirectory()) files.push(...(await collect(path)));

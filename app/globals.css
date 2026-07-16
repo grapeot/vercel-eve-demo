@@ -441,3 +441,83 @@ select {
     margin-bottom: 18px;
   }
 }
+/* Owner gate is intentionally sparse and visually separate from the workbench. */
+.access-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #101715;
+  color: #e8eee8;
+}
+
+.access-card {
+  width: min(100%, 520px);
+  padding: clamp(28px, 6vw, 52px);
+  border: 1px solid #3d4f49;
+  background: #17211e;
+  box-shadow: 0 24px 80px rgb(0 0 0 / 28%);
+}
+
+.access-card h1 {
+  margin: 10px 0 14px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 7vw, 3.6rem);
+  font-weight: 400;
+  line-height: 0.98;
+}
+
+.eyebrow {
+  color: #94b6a9;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+}
+
+.access-copy {
+  color: #b8c7c1;
+  line-height: 1.6;
+}
+
+.access-form {
+  display: grid;
+  gap: 10px;
+  margin-top: 30px;
+}
+
+.access-form label {
+  color: #b8c7c1;
+  font-size: 0.82rem;
+}
+
+.access-form input,
+.access-form button {
+  min-height: 46px;
+  border-radius: 0;
+  font: inherit;
+}
+
+.access-form input {
+  border: 1px solid #52665f;
+  padding: 0 12px;
+  background: #0f1715;
+  color: #fff;
+}
+
+.access-form button {
+  margin-top: 6px;
+  border: 0;
+  background: #d7e4a6;
+  color: #17211e;
+  cursor: pointer;
+}
+
+.access-form button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.access-error {
+  margin: 4px 0 0;
+  color: #ef9b8d;
+  font-size: 0.82rem;
+}

@@ -4,6 +4,12 @@
 
 ### 2026-07-16
 
+- 安全读取 1Password 中已有的 Turso Platform API token，创建 owner-only development database 与 Oregon primary group；database URL、database auth token 和新生成的 256-bit credential encryption key 只写入 mode `0600`、gitignored `.env.local`，Platform token 不落盘。
+- 新增幂等 `init:turso` 与 `db:migrate`：Turso schema v1 覆盖 access session、OAuth attempt/credential、research request/run、normalized event、artifact revision、feedback anchor、Skill Bundle version 和 usage summary；真实开发数据库已完成迁移。
+- 新增 typed repositories：access metadata 只保存 SHA-256 hash，OAuth refresh rotation 使用 credential version CAS，artifact revision immutable 并保留 parent/hash，event cursor 在 `(run_id, sequence)` 上唯一。
+- 新增 AES-256-GCM credential envelope：每条密文使用随机 96-bit IV、authentication tag 和 context AAD；master key强制为 32 bytes，不进入数据库。
+- 接通 owner challenge gate：Next proxy 对页面、API 和 Eve rewrite 统一检查可信 client IP、signed cookie 和 Turso revoke/status；challenge route 使用 constant-time comparison，签发 `HttpOnly` / `SameSite=Strict` cookie，失败统一返回 Access denied。
+- Web smoke 改为临时 libSQL + 独立 Next dist directory，避免干扰正在运行的开发 server；覆盖 locked page、错误 challenge、正确 cookie、受保护首页、health 和 Eve rewrite。默认测试现为 6 files / 23 tests。
 - 将产品重新定义为 owner-only Personal Research Workbench：localhost 为主要运行环境，临时 Vercel Pro deployment 通过 WAF IP allowlist + 256-bit challenge gate 保护；实际公网 IP 和 challenge secret 只进入 private config，不进入 repo。
 - 重写 PRD/RFC：最终交付改为 Sandbox `report.md` + HTML preview，加入 root/child event inspector、workspace file browser、feedback continuation、Turso artifact checkpoint 和完整 progressive-disclosure Skill Bundle。
 - 将 external-writing 的 app fork确定为 GPT-5.6 Sol 三遍成文：三个 sequential Eve built-in `agent` children 分别完成结构稿、自然重写和独立 QA；删除 Gemini/AGY、Antigravity 和 `gpt-image-2` 配图硬门槛。

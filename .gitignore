@@ -1,5 +1,6 @@
 node_modules/
 .next/
+.next-*/
 .output/
 .eve/
 .vercel/

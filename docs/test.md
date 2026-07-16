@@ -7,6 +7,9 @@
 覆盖：
 
 - runtime config 默认 mock 与 live fail-closed。
+- Turso schema 幂等迁移、access session、credential CAS、run event、artifact revision 和 feedback anchor。
+- AES-256-GCM credential envelope 的 context binding、篡改拒绝和错误 key 拒绝。
+- challenge constant-time comparison、signed cookie expiry/tamper、IPv4/IPv6 CIDR 和 Vercel trusted IP header。
 - Tavily CLI envelope normalization、错误脱敏。
 - usage credits 与美元估算。
 - Skill Bundle manifest 与 lockfile 生成。
@@ -20,7 +23,11 @@
 
 `npm run build` 先执行 `eve build`，再执行 `next build`。两步都必须在没有 credential 时成功。
 
-`npm run test:web` 启动 Next dev server，检查首页、`/api/health` 和 Next 到 Eve 的 `/eve/v1/info` rewrite。
+`npm run test:web` 使用临时本地 libSQL database 和独立 Next dist directory 启动 Next dev server。它先验证未授权请求进入统一 challenge gate、错误 challenge 返回 401、正确 challenge 签发 cookie，再检查首页、`/api/health` 和 Next 到 Eve 的 `/eve/v1/info` rewrite。测试结束删除临时 database，不读取 `.env.local`。
+
+## Turso Migration
+
+`npm run db:migrate` 显式读取 gitignored `.env.local`，幂等迁移真实开发数据库。默认离线测试只使用内存 libSQL，不访问 Turso。
 
 ## Live Test
 
