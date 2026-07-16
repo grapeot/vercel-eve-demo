@@ -1,5 +1,9 @@
 import { createOpenAI } from "@ai-sdk/openai";
-import type { LanguageModel } from "ai";
+import {
+  defaultSettingsMiddleware,
+  wrapLanguageModel,
+  type LanguageModel,
+} from "ai";
 
 import { getDatabaseClient } from "@/src/storage/server";
 
@@ -31,7 +35,33 @@ export function createCodexFetch(input: {
       request instanceof Request
         ? new Request(input.apiEndpoint, request)
         : input.apiEndpoint;
-    return fetchImpl(target, { ...init, headers });
+    let body = init?.body;
+    if (typeof body === "string") {
+      const payload = JSON.parse(body) as Record<string, unknown>;
+      const include = Array.isArray(payload.include) ? payload.include : [];
+      const responseInput = Array.isArray(payload.input)
+        ? payload.input.map((item) => {
+            if (
+              typeof item === "object" &&
+              item !== null &&
+              (item as Record<string, unknown>).type === "reasoning" &&
+              typeof (item as Record<string, unknown>).encrypted_content === "string"
+            ) {
+              const statelessItem = { ...(item as Record<string, unknown>) };
+              delete statelessItem.id;
+              return statelessItem;
+            }
+            return item;
+          })
+        : payload.input;
+      body = JSON.stringify({
+        ...payload,
+        input: responseInput,
+        store: false,
+        include: [...new Set([...include, "reasoning.encrypted_content"])],
+      });
+    }
+    return fetchImpl(target, { ...init, headers, body });
   };
 }
 
@@ -49,7 +79,7 @@ export async function resolveCodexModel(
     config,
     encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY,
   }).resolve(accessSessionId);
-  return createOpenAI({
+  const model = createOpenAI({
     name: "codex-owner",
     apiKey: "codex-owner-auth",
     fetch: createCodexFetch({
@@ -58,4 +88,10 @@ export async function resolveCodexModel(
       apiEndpoint: config.apiEndpoint,
     }),
   }).responses(config.model);
+  return wrapLanguageModel({
+    model,
+    middleware: defaultSettingsMiddleware({
+      settings: { providerOptions: { openai: { store: false } } },
+    }),
+  });
 }

@@ -4,6 +4,9 @@
 
 ### 2026-07-16
 
+- 完成真实 owner Codex + Tavily 产品验收：首轮 research 产生 248 个 Eve raw events，包含 4 次 search、1 次 extract、3 个 child stages 和 2 次 artifact checkpoints；normalized timeline 持久化 140 个 events，最终保留 7 个 latest artifacts。随后对当前 report hash 提交 feedback，同一 session 产生 60 个续写 events，并成功写入 2,272-byte、parent-linked 的新 `report.md` revision。
+- live 验收发现并修复两项只会在 Codex subscription backend 暴露的兼容性：Responses 强制 `store=false`，同时通过 AI SDK middleware 请求并 replay `reasoning.encrypted_content`、移除不可复用的 persisted reasoning ID；`publish_artifacts` JSON Schema 删除 provider 不支持的 regex lookaround，并在 executor 内继续 fail-closed 拒绝 absolute/traversal path。
+- 删除不再符合架构的 direct Eve + AI Gateway live smoke。live 模型验收现在必须经 owner challenge access session、Codex OAuth、Workbench run mapping 和 artifact persistence 完整执行，避免用无法携带 owner principal 的旧脚本制造假阳性。
 - 完成 Personal Research Workbench 产品层：三栏 UI 支持 run history、研究约束、normalized Eve timeline、artifact tree、Markdown source/sanitized preview/download、Codex connect 和 hash-anchored feedback continuation；页面刷新后可恢复最近 waiting session。
 - 新增 owner-scoped run APIs：创建/list/detail、Eve root session attach、cancel、event batch ingest/query、artifact list/read/download/report 与 feedback；同一 owner access session 同时只允许一个 active run，跨 run/session mapping 冲突 fail closed。
 - 新增 Eve event projector：reasoning event 不持久化，secret/credential/token 字段递归脱敏，Tavily search 只保留来源 metadata，extract 只保留 URL/content length，并把 skill、tool、subagent、file、usage、waiting/failure 状态映射为可检查 timeline。

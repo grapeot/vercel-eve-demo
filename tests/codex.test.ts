@@ -156,7 +156,18 @@ describe("Codex credential and transport", () => {
     await codexFetch("https://api.openai.example/v1/responses", {
       method: "POST",
       headers: { Authorization: "Bearer placeholder" },
-      body: "{}",
+      body: JSON.stringify({
+        model: "gpt-5.6-sol",
+        store: true,
+        input: [
+          {
+            type: "reasoning",
+            id: "server-item-id",
+            encrypted_content: "replayable-reasoning",
+            summary: [],
+          },
+        ],
+      }),
     });
 
     const [target, init] = fetchImpl.mock.calls[0];
@@ -165,6 +176,18 @@ describe("Codex credential and transport", () => {
     expect(headers.get("authorization")).toBe("Bearer private-access");
     expect(headers.get("ChatGPT-Account-Id")).toBe("acct-1");
     expect(headers.get("originator")).toBe("eve");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      model: "gpt-5.6-sol",
+      input: [
+        {
+          type: "reasoning",
+          encrypted_content: "replayable-reasoning",
+          summary: [],
+        },
+      ],
+      store: false,
+      include: ["reasoning.encrypted_content"],
+    });
     await expect(codexFetch("https://unexpected.example/v1/models")).rejects.toThrow(
       "unexpected endpoint",
     );

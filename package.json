@@ -20,7 +20,6 @@
     "test:watch": "vitest",
     "test:live": "RUN_LIVE_TESTS=1 node --env-file=.env.local --import tsx scripts/smoke-tavily.ts",
     "test:eve": "node scripts/smoke-eve.mjs",
-    "test:eve:live": "RUN_LIVE_EVE_SMOKE=1 node scripts/smoke-eve-live.mjs",
     "test:web": "node scripts/smoke-web.mjs",
     "bundle": "node scripts/build-skill-bundle.mjs",
     "benchmark:search": "node scripts/benchmark-web-search.mjs",

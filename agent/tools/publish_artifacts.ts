@@ -4,9 +4,9 @@ import { z } from "zod";
 import { ResearchRepository } from "../../src/storage/repositories";
 import { getDatabaseClient } from "../../src/storage/server";
 
-const safePath = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[A-Za-z0-9._/-]+\.md$/;
+const markdownPath = /^[A-Za-z0-9._/-]+\.md$/;
 const inputSchema = z.object({
-  paths: z.array(z.string().max(240).regex(safePath)).min(1).max(20),
+  paths: z.array(z.string().max(240).regex(markdownPath)).min(1).max(20),
 });
 const outputSchema = z.object({
   artifacts: z.array(
@@ -32,6 +32,9 @@ export default defineTool({
     const sandbox = await context.getSandbox();
     const artifacts = [];
     for (const path of input.paths) {
+      if (path.startsWith("/") || path.split("/").includes("..")) {
+        throw new Error("Artifact path must stay inside the workspace");
+      }
       const content = await sandbox.readTextFile({ path });
       if (content === null) throw new Error(`Workspace file not found: ${path}`);
       const previous = await repository.findLatestArtifact(String(run.id), path);

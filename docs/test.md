@@ -49,7 +49,7 @@ TAVILY_API_KEY=<real key>
 
 模型 live acceptance 以 Workbench 浏览器流程为准。验收：完成 owner Codex OAuth；创建 product run 并绑定 Eve root session；加载完整 Skill Bundle；调用 authored `web_search` / `web_extract`；写入并 checkpoint `report.md`；页面显示 normalized timeline、sanitized preview、source、download 与 content hash；对当前 hash 提交 feedback 后能续写同一 session 并生成 parent-linked revision。
 
-`npm run test:eve:live` 仍可用于底层 Eve transport smoke，但不替代上述产品 acceptance。它要求 `RUN_LIVE_EVE_SMOKE=1`（由 npm script 设置）、`EVE_DEMO_MODE=live`、`SEARCH_BACKEND=tavily`、`ALLOW_LIVE_API=1` 和所需 credential；测试有 120 秒硬超时，且不属于默认 CI。
+旧的 direct Eve + AI Gateway live smoke 已删除：它无法携带 Workbench owner principal，也不符合 Codex subscription-only 边界。模型 live acceptance 必须从通过 challenge gate 的 Workbench 发起，确保 OAuth credential、run ownership、event projection 和 artifact persistence 在同一 access session 中被验证。
 
 ## Public 检查
 
