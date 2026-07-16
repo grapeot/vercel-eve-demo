@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "bundle": "vercel-eve-deep-research",
+  "bundle": "personal-research-workbench",
   "target": "vercel-eve",
   "sources": [
     {
@@ -16,27 +16,101 @@
     },
     {
       "id": "tavily",
-      "type": "repo",
+      "type": "doc",
       "source": "https://github.com/grapeot/tavily-skill.git",
       "ref": "67db8f92b799ddd1af457dd3694f9064a0653538",
       "rootSkill": "skills/skill_tavily.md",
-      "install": "uv pip install .",
-      "commands": [
-        "tavily-skill"
-      ],
+      "install": null,
+      "commands": [],
       "credentials": [
         "TAVILY_API_KEY"
       ],
       "networkAllow": [
         "api.tavily.com"
       ]
+    },
+    {
+      "id": "external-writing",
+      "type": "doc",
+      "source": "https://github.com/grapeot/context-infrastructure.git",
+      "ref": "3039ad36a2c0c85f84a853ccfe86246a41691cbb",
+      "rootSkill": "rules/skills/workflow_external_writing.md",
+      "install": null,
+      "commands": [],
+      "credentials": [],
+      "networkAllow": []
     }
   ],
   "installedSkills": [
     {
       "id": "deep-research",
       "installedPath": "agent/skills/deep-research/SKILL.md",
-      "sha256": "af53ece4931e27be3c08eadd30f2b7b2b1f38ba7bf201ff8577b2302a6cca116"
+      "sha256": "f2a2937ec4f8d5f59ead1b20a9aa3b1d16de40f732b66c81d9ffe3d1e01fc021"
+    },
+    {
+      "id": "deep-research",
+      "installedPath": "agent/skills/deep-research/references/source-policy.md",
+      "sha256": "72b9b47c1256a06b9e669cac1b8b0c6ad4337849c827e07ddf6eb44ea9004dd9"
+    },
+    {
+      "id": "deep-research",
+      "installedPath": "agent/skills/deep-research/references/artifact-contract.md",
+      "sha256": "feaf63207c0e0ef22d646d9df17ad69b687bf9c3ec167d66bb519941dd1531f7"
+    },
+    {
+      "id": "deep-research",
+      "installedPath": "agent/skills/deep-research/references/parallel-subagents.md",
+      "sha256": "d9258ec262471aff6bda7162f71dd8f8528fb0bb90acd45e74e9f5c838c303e7"
+    },
+    {
+      "id": "tavily",
+      "installedPath": "agent/skills/tavily/SKILL.md",
+      "sha256": "f8b334237c2933dd684b3a28b4f155ac088e9c5a6331b345ca19c83ae545b07b"
+    },
+    {
+      "id": "tavily",
+      "installedPath": "agent/skills/tavily/references/search-contract.md",
+      "sha256": "f2257a4bcf04dfba178ae9d6756c45215d44b187d0df51946d569e19ffb79ced"
+    },
+    {
+      "id": "tavily",
+      "installedPath": "agent/skills/tavily/references/extract-contract.md",
+      "sha256": "5a0cff36f8e75e2eea98b9f6a1750be08a51b85804d78e298a8d78c3569e9555"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/SKILL.md",
+      "sha256": "b4a43c5539629626ca2fd7c48d13c5aaef6d54fdd4b29c8cba2514c056e381e0"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/thesis-catalog.md",
+      "sha256": "ee4d68de500cac17f5ef547219b096c236e6d660635aa0bd517cfea77abd6156"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/external-prose.md",
+      "sha256": "6248bfe0a3bec6b924e05ecc1258abf524d33814086b3651b20d5f3abab0932f"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/report-rubric.md",
+      "sha256": "cc225a1e1fe2b53650fc47dd087cd6a1449234eb1335c4c047b8ce32696aff0a"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/voice-samples/sample-1.md",
+      "sha256": "1f67410b97aa3e93836ea5737e3cdb2292ad63580ac759d5ae8b6fe139c4d79b"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/voice-samples/sample-2.md",
+      "sha256": "9e1bff360f38b436494a1b8123b8e2998486c20af11bbda9311a178fb9108ed0"
+    },
+    {
+      "id": "external-writing",
+      "installedPath": "agent/skills/external-writing/references/voice-samples/sample-3.md",
+      "sha256": "b5ec3b9f996d6fa67d349a7e34f06f1e653c4a6762861571497159af01a5061f"
     }
   ]
 }

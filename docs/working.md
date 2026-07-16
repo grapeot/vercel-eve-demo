@@ -4,6 +4,9 @@
 
 ### 2026-07-16
 
+- 将 Tavily production transport 从 Sandbox CLI 完整迁移到 app-runtime TypeScript REST executor：`web_search` 强制 `include_answer=false` / `include_raw_content=false`，新增 `web_extract`，localhost/Vercel 复用相同 schema、normalization、redaction 和 usage contract；Sandbox 不再接触 Tavily key。
+- 完整 vendor progressive Skill Bundle：3 个 root skills（deep-research、Tavily、external-writing）和 11 个 reference/voice files，覆盖来源分层、artifact contract、parallel children、search/extract、Thesis Catalog、自然中文 prose、report rubric 和 3 份 synthetic public-safe voice samples；lockfile 记录全部 14 个文件 hash。
+- 使用 private `.env.local` 的 Tavily credential 完成真实 app-runtime search + extract smoke：2 个搜索来源、1 个正文提取，credential 未进入输出。默认测试现为 7 files / 30 tests；Web smoke 额外检查两个 typed tools 与三个 static skills。
 - 完成 owner-only Codex OAuth foundation：localhost browser PKCE 使用 `localhost:1455` callback；Vercel-compatible device flow 每个 poll route 只请求一次并由 Turso `next_poll_at` 限速；attempt 中的 verifier/device ID 使用 AES-GCM 加密，浏览器只看到 user code、verification URL 和 opaque attempt ID。
 - Turso schema 升级到 v2；OAuth token exchange/refresh 使用 Zod fail-closed validation，account ID 只从可信 token endpoint 返回的 JWT 中提取为 transport metadata，不将 token 放入 Eve/session/event/browser storage。
 - Codex credential resolver 使用 Turso refresh lease + credential version CAS 处理多实例并发 rotation；private Responses fetch 只允许 `/responses` 请求，替换 SDK placeholder auth，注入 bearer/account ID 后路由到 Codex endpoint。
@@ -56,4 +59,4 @@
 - `placeholderAuth()` 在 Vercel Production 中主动拒绝请求，这是公开 Demo 的安全默认值。
 - stream 到 `session.waiting` 后仍保持连接，smoke test 必须主动终止读取，不能把 timeout 当作 turn 失败。
 - Next `16.2.6` 当前传递依赖 `postcss <8.5.10`，`npm audit --omit=dev` 报告 `GHSA-qx2v-qp2m-jg93`（moderate）。npm 给出的 `--force` 修复会降级到不兼容的 Next `9.3.3`，因此不采用；等待 Next 发布非破坏性修复后再升级并重跑完整验证。
-- microsandbox `0.5.10` 的 network transform 实测没有覆盖 Tavily SDK 已存在的 Authorization header，Tavily 返回 401。当前生产仍使用 Vercel Sandbox broker；本地改用 Docker env，并通过禁用模型 `bash` 限制 secret 暴露。不要把本地 fallback 复制到多租户生产环境。
+- microsandbox `0.5.10` 的 network transform 实测没有覆盖 Tavily SDK 已存在的 Authorization header，Tavily 返回 401。旧版本曾使用 Vercel Sandbox broker / local Docker env；当前实现已删除这条 credential transport，改由可信 app runtime 直接调用 Tavily REST。不要重新把 Tavily key 注入 Sandbox。

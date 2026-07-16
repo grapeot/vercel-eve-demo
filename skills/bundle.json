@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "bundle": "vercel-eve-deep-research",
+  "bundle": "personal-research-workbench",
   "target": "vercel-eve",
   "skills": [
     {
@@ -8,19 +8,43 @@
       "type": "doc",
       "source": "https://github.com/grapeot/context-infrastructure.git",
       "ref": "3039ad36a2c0c85f84a853ccfe86246a41691cbb",
-      "canonicalPath": "rules/skills/workflow_deep_research_survey.md",
-      "installedPath": "agent/skills/deep-research/SKILL.md"
+      "rootSkill": "rules/skills/workflow_deep_research_survey.md",
+      "installedPaths": [
+        "agent/skills/deep-research/SKILL.md",
+        "agent/skills/deep-research/references/source-policy.md",
+        "agent/skills/deep-research/references/artifact-contract.md",
+        "agent/skills/deep-research/references/parallel-subagents.md"
+      ]
     },
     {
       "id": "tavily",
-      "type": "repo",
+      "type": "doc",
       "source": "https://github.com/grapeot/tavily-skill.git",
       "ref": "67db8f92b799ddd1af457dd3694f9064a0653538",
       "rootSkill": "skills/skill_tavily.md",
-      "install": "uv pip install .",
-      "commands": ["tavily-skill"],
+      "installedPaths": [
+        "agent/skills/tavily/SKILL.md",
+        "agent/skills/tavily/references/search-contract.md",
+        "agent/skills/tavily/references/extract-contract.md"
+      ],
       "credentials": ["TAVILY_API_KEY"],
       "networkAllow": ["api.tavily.com"]
+    },
+    {
+      "id": "external-writing",
+      "type": "doc",
+      "source": "https://github.com/grapeot/context-infrastructure.git",
+      "ref": "3039ad36a2c0c85f84a853ccfe86246a41691cbb",
+      "rootSkill": "rules/skills/workflow_external_writing.md",
+      "installedPaths": [
+        "agent/skills/external-writing/SKILL.md",
+        "agent/skills/external-writing/references/thesis-catalog.md",
+        "agent/skills/external-writing/references/external-prose.md",
+        "agent/skills/external-writing/references/report-rubric.md",
+        "agent/skills/external-writing/references/voice-samples/sample-1.md",
+        "agent/skills/external-writing/references/voice-samples/sample-2.md",
+        "agent/skills/external-writing/references/voice-samples/sample-3.md"
+      ]
     }
   ]
 }

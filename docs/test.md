@@ -11,7 +11,7 @@
 - AES-256-GCM credential envelope 的 context binding、篡改拒绝和错误 key 拒绝。
 - challenge constant-time comparison、signed cookie expiry/tamper、IPv4/IPv6 CIDR 和 Vercel trusted IP header。
 - Codex PKCE/device request schema、account metadata extraction、encrypted token persistence、distributed refresh lease/CAS 和 private Responses transport header/endpoint boundary。
-- Tavily CLI envelope normalization、错误脱敏。
+- Tavily app-runtime search/extract request contract、response normalization、usage 和错误脱敏。
 - usage credits 与美元估算。
 - Skill Bundle manifest 与 lockfile 生成。
 - deep-research skill 的必要 contract。
@@ -43,9 +43,9 @@ SEARCH_BACKEND=tavily
 TAVILY_API_KEY=<real key>
 ```
 
-测试使用 mock model 触发一次 Sandbox `web_search`，验证固定 Tavily CLI、credential transport、结果 schema 与 usage，不调用付费模型。它会消耗 Tavily credits；首次运行还会建立 Sandbox template。
+测试直接调用与 Eve tool 相同的 TypeScript executor，依次执行一次 `web_search` 和一次 `web_extract`，验证 Tavily REST credential boundary、结果 schema 与 usage，不调用模型。它会消耗少量 Tavily credits，但不创建 Sandbox 或向 Sandbox 注入 credential。
 
-模型 live smoke 通过浏览器、curl 或 `npm run test:eve:live` 执行。验收：能加载 baked-in skill、调用 authored `web_search` override、返回 Tavily来源，并在 run metadata 中看到 token/tool timing。
+模型 live smoke 通过浏览器、curl 或 `npm run test:eve:live` 执行。验收：能加载完整 baked-in Skill Bundle、调用 authored `web_search` / `web_extract`、返回 Tavily来源，并在 run metadata 中看到 token/tool timing。
 
 也可显式运行 `npm run test:eve:live`。它要求 `RUN_LIVE_EVE_SMOKE=1`（由 npm script 设置）、`EVE_DEMO_MODE=live`、`SEARCH_BACKEND=tavily`、`ALLOW_LIVE_API=1` 和两个 credential；测试有 120 秒硬超时，且不属于默认 CI。
 

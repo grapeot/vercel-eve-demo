@@ -16,7 +16,7 @@
 - `app/`：Next.js 前端与 server-side API。
 - `src/`：平台无关配置、搜索、计费和 bundle 逻辑。
 - `skills/`：平台无关 Skill Bundle manifest。
-- `sandbox/`：可选的 Tavily CLI Sandbox image。
+- Sandbox 只保存任务 workspace；Tavily 由 app-runtime typed tools调用，不向 Sandbox 注入 credential。
 - `scripts/`：稳定的构建、检查和 smoke-test 入口。
 - `tests/`：默认离线测试与 opt-in live tests。
 - `docs/`：中文 PRD、RFC、测试与工作记录。

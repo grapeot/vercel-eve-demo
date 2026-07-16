@@ -6,15 +6,20 @@ import { describe, expect, it } from "vitest";
 const root = resolve(import.meta.dirname, "..");
 
 describe("skill bundle", () => {
-  it("deep-research skill 声明来源、预算、引用与 secret 边界", () => {
+  it("ships the research, Tavily, and external-writing contracts", () => {
     const skill = readFileSync(
       resolve(root, "agent/skills/deep-research/SKILL.md"),
       "utf8",
     );
     expect(skill).toContain("description:");
-    expect(skill).toContain("来源 URL");
-    expect(skill).toContain("成本边界");
+    expect(skill).toContain("report.md");
     expect(skill).toContain("API key");
+    expect(
+      readFileSync(resolve(root, "agent/skills/tavily/SKILL.md"), "utf8"),
+    ).toContain("web_extract");
+    expect(
+      readFileSync(resolve(root, "agent/skills/external-writing/SKILL.md"), "utf8"),
+    ).toContain("Three Sequential Passes");
   });
 
   it("builder 生成固定 commit 与文件 hash 的 lockfile", () => {
@@ -23,10 +28,15 @@ describe("skill bundle", () => {
       readFileSync(resolve(root, "skills/skills.lock.json"), "utf8"),
     );
     expect(lock.target).toBe("vercel-eve");
-    expect(lock.sources).toHaveLength(2);
+    expect(lock.sources).toHaveLength(3);
     expect(lock.sources.every((source: { ref: string }) => source.ref.length === 40)).toBe(
       true,
     );
-    expect(lock.installedSkills[0].sha256).toMatch(/^[a-f0-9]{64}$/);
+    expect(lock.installedSkills).toHaveLength(14);
+    expect(
+      lock.installedSkills.every((item: { sha256: string }) =>
+        /^[a-f0-9]{64}$/.test(item.sha256),
+      ),
+    ).toBe(true);
   });
 });

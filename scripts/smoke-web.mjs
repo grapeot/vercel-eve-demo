@@ -143,11 +143,18 @@ async function run() {
     throw new Error(`Eve info returned HTTP ${eveResponse.status}: ${JSON.stringify(eveInfo)}`);
   }
   const webSearch = eveInfo.tools?.authored?.find((tool) => tool.name === "web_search");
-  const hasDeepResearch = eveInfo.skills?.static?.some(
-    (skill) => skill.name === "deep-research",
+  const webExtract = eveInfo.tools?.authored?.find((tool) => tool.name === "web_extract");
+  const skillNames = new Set(
+    eveInfo.skills?.static?.map((skill) => skill.name) ?? [],
   );
-  if (!webSearch?.replacesFrameworkTool || !hasDeepResearch) {
-    throw new Error("Eve manifest 缺少 web_search override 或 deep-research skill");
+  if (
+    !webSearch?.replacesFrameworkTool ||
+    !webExtract ||
+    !["deep-research", "tavily", "external-writing"].every((name) =>
+      skillNames.has(name),
+    )
+  ) {
+    throw new Error("Eve manifest 缺少 typed Tavily tools 或完整 Skill Bundle");
   }
   if (!eveInfo.tools?.disabledFramework?.includes("bash")) {
     throw new Error("Eve manifest 未禁用 built-in bash");

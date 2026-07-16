@@ -23,14 +23,16 @@ for (const skill of manifest.skills) {
 }
 
 const localSkills = [];
-for (const skill of manifest.skills.filter((item) => item.installedPath)) {
-  const installedPath = resolve(root, skill.installedPath);
-  const content = await readFile(installedPath);
-  localSkills.push({
-    id: skill.id,
-    installedPath: skill.installedPath,
-    sha256: createHash("sha256").update(content).digest("hex"),
-  });
+for (const skill of manifest.skills) {
+  const paths = skill.installedPaths ?? (skill.installedPath ? [skill.installedPath] : []);
+  for (const path of paths) {
+    const content = await readFile(resolve(root, path));
+    localSkills.push({
+      id: skill.id,
+      installedPath: path,
+      sha256: createHash("sha256").update(content).digest("hex"),
+    });
+  }
 }
 
 const lock = {
