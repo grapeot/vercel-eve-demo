@@ -1,7 +1,8 @@
-import { defineAgent } from "eve";
+import { defineAgent, defineDynamic } from "eve";
 import { mockModel } from "eve/evals";
 
 import { resolveRuntimeConfig } from "../src/config";
+import { resolveCodexModel } from "../src/codex/model";
 
 const config = resolveRuntimeConfig();
 
@@ -42,10 +43,40 @@ const deterministicResearchModel = mockModel({
   },
 });
 
+const unavailableCodexModel = mockModel({
+  modelId: "codex-authorization-required",
+  provider: "fail-closed",
+  respond: () => {
+    throw new Error("ChatGPT authorization is unavailable. Reconnect and retry.");
+  },
+});
+
 export default defineAgent(
   config.mode === "live"
     ? {
-        model: config.model,
+        model: defineDynamic({
+          fallback: unavailableCodexModel,
+          events: {
+            "step.started": async (_event, context) => {
+              const initiator = context.session.auth.initiator;
+              const current = context.session.auth.current;
+              if (
+                !initiator ||
+                !current ||
+                initiator.principalId !== current.principalId
+              ) {
+                return unavailableCodexModel;
+              }
+              try {
+                return await resolveCodexModel(initiator.principalId);
+              } catch {
+                return unavailableCodexModel;
+              }
+            },
+          },
+        }),
+        modelContextWindowTokens: 500_000,
+        reasoning: "medium" as const,
       }
     : {
         model: deterministicResearchModel,

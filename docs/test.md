@@ -10,6 +10,7 @@
 - Turso schema 幂等迁移、access session、credential CAS、run event、artifact revision 和 feedback anchor。
 - AES-256-GCM credential envelope 的 context binding、篡改拒绝和错误 key 拒绝。
 - challenge constant-time comparison、signed cookie expiry/tamper、IPv4/IPv6 CIDR 和 Vercel trusted IP header。
+- Codex PKCE/device request schema、account metadata extraction、encrypted token persistence、distributed refresh lease/CAS 和 private Responses transport header/endpoint boundary。
 - Tavily CLI envelope normalization、错误脱敏。
 - usage credits 与美元估算。
 - Skill Bundle manifest 与 lockfile 生成。
@@ -28,6 +29,8 @@
 ## Turso Migration
 
 `npm run db:migrate` 显式读取 gitignored `.env.local`，幂等迁移真实开发数据库。默认离线测试只使用内存 libSQL，不访问 Turso。
+
+Codex 默认测试全部使用合成 JWT 和 fake fetch，不联系 OpenAI。真实 browser PKCE/device flow 与 subscription inference 必须显式设置 `CODEX_EXPERIMENT_ENABLED=1`，并由 owner 在 OpenAI 页面完成授权。
 
 ## Live Test
 

@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { isIpAllowed, verifyAccessCookie } from "@/src/security/access";
-import {
-  ACCESS_COOKIE_NAME,
-  clientIpFromHeaders,
-  resolveAccessConfig,
-} from "@/src/security/config";
-import { AccessSessionRepository } from "@/src/storage/repositories";
-import { getDatabaseClient } from "@/src/storage/server";
+import { authenticateOwnerRequest } from "@/src/security/request";
 
 function reject(request: NextRequest) {
   if (request.nextUrl.pathname.startsWith("/api/")) {
@@ -18,18 +11,9 @@ function reject(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   try {
-    const config = resolveAccessConfig();
-    const clientIp = clientIpFromHeaders(request.headers);
-    const token = request.cookies.get(ACCESS_COOKIE_NAME)?.value;
-    if (!clientIp || !isIpAllowed(clientIp, config.allowedCidrs) || !token) {
-      return reject(request);
-    }
-    const payload = verifyAccessCookie({ token, signingKey: config.cookieSigningKey });
-    if (!payload) return reject(request);
-    const active = await new AccessSessionRepository(
-      getDatabaseClient(),
-    ).findActive(payload.sessionId);
-    return active ? NextResponse.next() : reject(request);
+    return (await authenticateOwnerRequest(request))
+      ? NextResponse.next()
+      : reject(request);
   } catch {
     return reject(request);
   }

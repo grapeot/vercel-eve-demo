@@ -1,23 +1,28 @@
 import { eveChannel } from "eve/channels/eve";
-import {
-  httpBasic,
-  localDev,
-  placeholderAuth,
-  vercelOidc,
-} from "eve/channels/auth";
 
-const authMode = process.env.EVE_AUTH_MODE ?? "placeholder";
+import { authenticateOwnerRequest } from "../../src/security/request";
 
-const browserAuth =
-  authMode === "basic" &&
-  process.env.EVE_AUTH_USERNAME &&
-  process.env.EVE_AUTH_PASSWORD
-    ? httpBasic({
-        username: process.env.EVE_AUTH_USERNAME,
-        password: process.env.EVE_AUTH_PASSWORD,
-      })
-    : placeholderAuth();
+const ownerAuth = async (request: Request) => {
+  const owner = await authenticateOwnerRequest(request);
+  if (!owner) return null;
+  return {
+    authenticator: "owner-challenge",
+    principalId: owner.accessSessionId,
+    principalType: "user",
+    subject: owner.accessSessionId,
+    attributes: {},
+  };
+};
+
+const mockAuth = () => ({
+  authenticator: "offline-mock",
+  principalId: "offline-mock-owner",
+  principalType: "user",
+  subject: "offline-mock-owner",
+  attributes: {},
+});
 
 export default eveChannel({
-  auth: [vercelOidc(), localDev(), browserAuth],
+  auth:
+    process.env.EVE_DEMO_MODE === "mock" ? [ownerAuth, mockAuth] : [ownerAuth],
 });

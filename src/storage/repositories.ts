@@ -172,6 +172,148 @@ export class OAuthCredentialRepository {
     });
     return result.rowsAffected === 1;
   }
+
+  async acquireRefreshLease(input: {
+    accessSessionId: string;
+    expectedVersion: number;
+    now: string;
+    leaseUntil: string;
+  }): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE oauth_credentials SET refresh_lease_until = ?, updated_at = ?
+        WHERE access_session_id = ? AND credential_version = ? AND status = 'active'
+          AND (refresh_lease_until IS NULL OR refresh_lease_until <= ?)`,
+      args: [
+        input.leaseUntil,
+        input.now,
+        input.accessSessionId,
+        input.expectedVersion,
+        input.now,
+      ],
+    });
+    return result.rowsAffected === 1;
+  }
+
+  async releaseRefreshLease(
+    accessSessionId: string,
+    expectedVersion: number,
+  ): Promise<void> {
+    await this.client.execute({
+      sql: `UPDATE oauth_credentials SET refresh_lease_until = NULL, updated_at = ?
+        WHERE access_session_id = ? AND credential_version = ?`,
+      args: [nowIso(), accessSessionId, expectedVersion],
+    });
+  }
+}
+
+export interface StoredOAuthAttempt {
+  id: string;
+  accessSessionId: string;
+  flow: "pkce" | "device";
+  stateHash: string | null;
+  encryptedPayload: string;
+  redirectUri: string | null;
+  pollIntervalSeconds: number | null;
+  nextPollAt: string | null;
+  expiresAt: string;
+}
+
+export class OAuthAttemptRepository {
+  constructor(private readonly client: Client) {}
+
+  async create(input: Omit<StoredOAuthAttempt, "id"> & { id?: string }): Promise<string> {
+    const id = input.id ?? randomUUID();
+    await this.client.execute({
+      sql: `INSERT INTO oauth_attempts
+        (id, access_session_id, flow, state_hash, encrypted_payload, redirect_uri,
+         poll_interval_seconds, next_poll_at, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        input.accessSessionId,
+        input.flow,
+        input.stateHash,
+        input.encryptedPayload,
+        input.redirectUri,
+        input.pollIntervalSeconds,
+        input.nextPollAt,
+        nowIso(),
+        input.expiresAt,
+      ],
+    });
+    return id;
+  }
+
+  async findPending(
+    id: string,
+    accessSessionId: string,
+    at = new Date(),
+  ): Promise<StoredOAuthAttempt | null> {
+    const result = await this.client.execute({
+      sql: `SELECT * FROM oauth_attempts
+        WHERE id = ? AND access_session_id = ? AND consumed_at IS NULL AND expires_at > ?`,
+      args: [id, accessSessionId, at.toISOString()],
+    });
+    return result.rows[0] ? mapOAuthAttempt(result.rows[0]) : null;
+  }
+
+  async findPendingByStateHash(
+    stateHash: string,
+    at = new Date(),
+  ): Promise<StoredOAuthAttempt | null> {
+    const result = await this.client.execute({
+      sql: `SELECT * FROM oauth_attempts
+        WHERE state_hash = ? AND flow = 'pkce' AND consumed_at IS NULL AND expires_at > ?
+        ORDER BY created_at DESC LIMIT 1`,
+      args: [stateHash, at.toISOString()],
+    });
+    return result.rows[0] ? mapOAuthAttempt(result.rows[0]) : null;
+  }
+
+  async claimDevicePoll(input: {
+    id: string;
+    accessSessionId: string;
+    now: string;
+    nextPollAt: string;
+  }): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE oauth_attempts SET next_poll_at = ?
+        WHERE id = ? AND access_session_id = ? AND flow = 'device'
+          AND consumed_at IS NULL AND expires_at > ?
+          AND (next_poll_at IS NULL OR next_poll_at <= ?)`,
+      args: [
+        input.nextPollAt,
+        input.id,
+        input.accessSessionId,
+        input.now,
+        input.now,
+      ],
+    });
+    return result.rowsAffected === 1;
+  }
+
+  async consume(id: string): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: "UPDATE oauth_attempts SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
+      args: [nowIso(), id],
+    });
+    return result.rowsAffected === 1;
+  }
+}
+
+function mapOAuthAttempt(row: Record<string, InValue>): StoredOAuthAttempt {
+  return {
+    id: String(row.id),
+    accessSessionId: String(row.access_session_id),
+    flow: String(row.flow) as StoredOAuthAttempt["flow"],
+    stateHash: rowString(row.state_hash),
+    encryptedPayload: String(row.encrypted_payload),
+    redirectUri: rowString(row.redirect_uri),
+    pollIntervalSeconds:
+      row.poll_interval_seconds == null ? null : Number(row.poll_interval_seconds),
+    nextPollAt: rowString(row.next_poll_at),
+    expiresAt: String(row.expires_at),
+  };
 }
 
 export class ResearchRepository {

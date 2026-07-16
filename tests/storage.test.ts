@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   AccessSessionRepository,
+  OAuthAttemptRepository,
   OAuthCredentialRepository,
   ResearchRepository,
 } from "@/src/storage/repositories";
@@ -23,7 +24,7 @@ describe("Turso storage", () => {
     const result = await client.execute(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(result.rows.map((row) => Number(row.version))).toEqual([SCHEMA_VERSION]);
+    expect(result.rows.map((row) => Number(row.version))).toEqual([1, SCHEMA_VERSION]);
   });
 
   it("creates, validates, hashes metadata, and revokes access sessions", async () => {
@@ -78,6 +79,42 @@ describe("Turso storage", () => {
       }),
     ).toBe(false);
     expect((await credentials.findBySession("access-1"))?.version).toBe(2);
+  });
+
+  it("rate-limits device polling with an atomic next-poll claim", async () => {
+    const sessions = new AccessSessionRepository(client);
+    await sessions.create({
+      id: "access-1",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const attempts = new OAuthAttemptRepository(client);
+    await attempts.create({
+      id: "attempt-1",
+      accessSessionId: "access-1",
+      flow: "device",
+      stateHash: null,
+      encryptedPayload: "encrypted",
+      redirectUri: "https://example.com/callback",
+      pollIntervalSeconds: 5,
+      nextPollAt: "2026-07-16T12:00:00.000Z",
+      expiresAt: "2026-07-16T12:10:00.000Z",
+    });
+    expect(
+      await attempts.claimDevicePoll({
+        id: "attempt-1",
+        accessSessionId: "access-1",
+        now: "2026-07-16T12:00:00.000Z",
+        nextPollAt: "2026-07-16T12:00:05.000Z",
+      }),
+    ).toBe(true);
+    expect(
+      await attempts.claimDevicePoll({
+        id: "attempt-1",
+        accessSessionId: "access-1",
+        now: "2026-07-16T12:00:01.000Z",
+        nextPollAt: "2026-07-16T12:00:06.000Z",
+      }),
+    ).toBe(false);
   });
 
   it("stores run events, immutable artifact revisions, and anchored feedback", async () => {

@@ -1,14 +1,17 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const port = 4318;
 const origin = `http://127.0.0.1:${port}`;
+const evePort = 4319;
+const eveOrigin = `http://127.0.0.1:${evePort}`;
 const logs = [];
 const tempDirectory = await mkdtemp(join(tmpdir(), "research-workbench-smoke-"));
+const eveAppDirectory = join(tempDirectory, "eve-app");
 const smokeDistDirectory = `.next-smoke-${process.pid}`;
 const trackedNextFiles = new Map(
   await Promise.all(
@@ -30,6 +33,7 @@ const serverEnv = {
   CREDENTIAL_ENCRYPTION_KEY: randomBytes(32).toString("base64url"),
   TURSO_DATABASE_URL: `file:${join(tempDirectory, "smoke.sqlite")}`,
   NEXT_DIST_DIR: smokeDistDirectory,
+  EVE_BASE_URL: eveOrigin,
 };
 
 const migration = spawn(
@@ -46,6 +50,22 @@ if (migrationExitCode !== 0) {
   throw new Error(`Test database migration failed:\n${migrationOutput.join("")}`);
 }
 
+await mkdir(eveAppDirectory);
+for (const path of ["agent", "src", "package.json", "tsconfig.json"]) {
+  await cp(path, join(eveAppDirectory, path), { recursive: true });
+}
+await symlink(join(process.cwd(), "node_modules"), join(eveAppDirectory, "node_modules"));
+
+const eveChild = spawn(
+  "./node_modules/.bin/eve",
+  ["dev", "--no-ui", "--port", String(evePort)],
+  {
+    cwd: eveAppDirectory,
+    env: serverEnv,
+    stdio: ["ignore", "pipe", "pipe"],
+  },
+);
+
 const child = spawn(
   "./node_modules/.bin/next",
   ["dev", "--hostname", "127.0.0.1", "--port", String(port)],
@@ -55,7 +75,7 @@ const child = spawn(
   },
 );
 
-for (const stream of [child.stdout, child.stderr]) {
+for (const stream of [child.stdout, child.stderr, eveChild.stdout, eveChild.stderr]) {
   stream.on("data", (chunk) => {
     logs.push(String(chunk));
     if (logs.length > 100) logs.shift();
@@ -63,19 +83,24 @@ for (const stream of [child.stdout, child.stderr]) {
 }
 
 async function waitFor(path) {
+  return waitForUrl(`${origin}${path}`);
+}
+
+async function waitForUrl(url) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     try {
-      const response = await fetch(`${origin}${path}`);
+      const response = await fetch(url);
       if (response.ok) return response;
     } catch {
       // Next and the Eve sidecar are still starting.
     }
     await delay(250);
   }
-  throw new Error(`${path} 未在 25 秒内启动`);
+  throw new Error(`${url} 未在 25 秒内启动`);
 }
 
 async function run() {
+  await waitForUrl(`${eveOrigin}/eve/v1/health`);
   const lockedPage = await waitFor("/");
   const lockedHtml = await lockedPage.text();
   if (!lockedHtml.includes("Private challenge")) {
@@ -110,9 +135,13 @@ async function run() {
     throw new Error("Next health 未报告 mock 模式");
   }
 
-  const eveInfo = await (
-    await fetch(`${origin}/eve/v1/info`, { headers: { Cookie: cookie } })
-  ).json();
+  const eveResponse = await fetch(`${origin}/eve/v1/info`, {
+    headers: { Cookie: cookie },
+  });
+  const eveInfo = await eveResponse.json();
+  if (!eveResponse.ok) {
+    throw new Error(`Eve info returned HTTP ${eveResponse.status}: ${JSON.stringify(eveInfo)}`);
+  }
   const webSearch = eveInfo.tools?.authored?.find((tool) => tool.name === "web_search");
   const hasDeepResearch = eveInfo.skills?.static?.some(
     (skill) => skill.name === "deep-research",
@@ -134,8 +163,14 @@ try {
   process.exitCode = 1;
 } finally {
   child.kill("SIGTERM");
+  eveChild.kill("SIGTERM");
   await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(2_000)]);
+  await Promise.race([
+    new Promise((resolve) => eveChild.once("exit", resolve)),
+    delay(2_000),
+  ]);
   if (child.exitCode === null) child.kill("SIGKILL");
+  if (eveChild.exitCode === null) eveChild.kill("SIGKILL");
   await rm(tempDirectory, { recursive: true, force: true });
   await rm(smokeDistDirectory, { recursive: true, force: true });
   await Promise.all(

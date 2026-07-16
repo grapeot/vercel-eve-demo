@@ -4,6 +4,11 @@
 
 ### 2026-07-16
 
+- 完成 owner-only Codex OAuth foundation：localhost browser PKCE 使用 `localhost:1455` callback；Vercel-compatible device flow 每个 poll route 只请求一次并由 Turso `next_poll_at` 限速；attempt 中的 verifier/device ID 使用 AES-GCM 加密，浏览器只看到 user code、verification URL 和 opaque attempt ID。
+- Turso schema 升级到 v2；OAuth token exchange/refresh 使用 Zod fail-closed validation，account ID 只从可信 token endpoint 返回的 JWT 中提取为 transport metadata，不将 token 放入 Eve/session/event/browser storage。
+- Codex credential resolver 使用 Turso refresh lease + credential version CAS 处理多实例并发 rotation；private Responses fetch 只允许 `/responses` 请求，替换 SDK placeholder auth，注入 bearer/account ID 后路由到 Codex endpoint。
+- Eve live model 改为 `defineDynamic` 的 `step.started` resolver，按 challenge access session 取 credential；fallback 是无网络、无 credential 的 failing model，不再使用 AI Gateway string。live Eve channel 只接受经过 IP/cookie/Turso 校验的 owner principal，mock mode 使用固定的 offline-only principal。
+- 新增 `CODEX_EXPERIMENT_ENABLED` kill switch、OpenCode MIT notice 和 5 个 Codex-specific 单元测试；默认测试现为 7 files / 29 tests。真实 OpenAI OAuth/inference 仍保持 owner 手动 opt-in，不进入默认验证。
 - 安全读取 1Password 中已有的 Turso Platform API token，创建 owner-only development database 与 Oregon primary group；database URL、database auth token 和新生成的 256-bit credential encryption key 只写入 mode `0600`、gitignored `.env.local`，Platform token 不落盘。
 - 新增幂等 `init:turso` 与 `db:migrate`：Turso schema v1 覆盖 access session、OAuth attempt/credential、research request/run、normalized event、artifact revision、feedback anchor、Skill Bundle version 和 usage summary；真实开发数据库已完成迁移。
 - 新增 typed repositories：access metadata 只保存 SHA-256 hash，OAuth refresh rotation 使用 credential version CAS，artifact revision immutable 并保留 parent/hash，event cursor 在 `(run_id, sequence)` 上唯一。

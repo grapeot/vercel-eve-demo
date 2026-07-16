@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -118,6 +118,21 @@ export async function migrateDatabase(client: Client): Promise<void> {
   );
   await client.execute({
     sql: "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
-    args: [SCHEMA_VERSION, new Date().toISOString()],
+    args: [1, new Date().toISOString()],
   });
+  const versionTwo = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 2",
+  );
+  if (versionTwo.rows.length === 0) {
+    await client.batch(
+      [
+        "ALTER TABLE oauth_attempts ADD COLUMN next_poll_at TEXT",
+        {
+          sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (2, ?)",
+          args: [new Date().toISOString()],
+        },
+      ],
+      "write",
+    );
+  }
 }

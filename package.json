@@ -26,11 +26,13 @@
     "benchmark:search": "node scripts/benchmark-web-search.mjs",
     "init:private-access": "node scripts/init-private-access.mjs",
     "init:turso": "node scripts/init-turso.mjs",
+    "enable:codex-experiment": "node scripts/enable-codex-experiment.mjs",
     "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate-database.ts",
     "check:public": "node scripts/check-public-content.mjs",
     "verify": "npm run bundle && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:public"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^3.0.84",
     "@libsql/client": "^0.17.4",
     "ai": "7.0.26",
     "eve": "0.24.4",
