@@ -358,21 +358,105 @@ export class ResearchRepository {
     return id;
   }
 
+  async attachSession(input: {
+    runId: string;
+    accessSessionId: string;
+    eveSessionId: string;
+  }): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE runs SET eve_session_id = ?, status = 'running', updated_at = ?
+        WHERE id = ? AND request_id IN (
+          SELECT id FROM research_requests WHERE access_session_id = ?
+        ) AND (eve_session_id IS NULL OR eve_session_id = ?)`,
+      args: [
+        input.eveSessionId,
+        nowIso(),
+        input.runId,
+        input.accessSessionId,
+        input.eveSessionId,
+      ],
+    });
+    return result.rowsAffected === 1;
+  }
+
+  async findRunByEveSession(eveSessionId: string) {
+    const result = await this.client.execute({
+      sql: `SELECT id, request_id, eve_session_id, workspace_id, status,
+        skill_bundle_version, created_at, updated_at
+        FROM runs WHERE eve_session_id = ?`,
+      args: [eveSessionId],
+    });
+    return result.rows[0] ?? null;
+  }
+
+  async findOwnedRun(runId: string, accessSessionId: string) {
+    const result = await this.client.execute({
+      sql: `SELECT runs.id, runs.request_id, runs.eve_session_id, runs.workspace_id,
+        runs.status, runs.skill_bundle_version, runs.created_at, runs.updated_at,
+        research_requests.question, research_requests.context,
+        research_requests.constraints_json
+        FROM runs JOIN research_requests ON research_requests.id = runs.request_id
+        WHERE runs.id = ? AND research_requests.access_session_id = ?`,
+      args: [runId, accessSessionId],
+    });
+    return result.rows[0] ?? null;
+  }
+
+  async listOwnedRuns(accessSessionId: string, limit = 20) {
+    const result = await this.client.execute({
+      sql: `SELECT runs.id, runs.eve_session_id, runs.workspace_id, runs.status,
+        runs.created_at, runs.updated_at, research_requests.question
+        FROM runs JOIN research_requests ON research_requests.id = runs.request_id
+        WHERE research_requests.access_session_id = ?
+        ORDER BY runs.created_at DESC LIMIT ?`,
+      args: [accessSessionId, limit],
+    });
+    return result.rows;
+  }
+
+  async setRunStatus(
+    runId: string,
+    status: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled",
+  ): Promise<void> {
+    await this.client.execute({
+      sql: "UPDATE runs SET status = ?, updated_at = ? WHERE id = ?",
+      args: [status, nowIso(), runId],
+    });
+  }
+
   async appendEvent(input: {
+    id?: string;
     runId: string;
     sequence: number;
     type: string;
     summary: string;
     payload?: unknown;
   }): Promise<string> {
-    const id = randomUUID();
+    const id = input.id ?? randomUUID();
     await this.client.execute({
-      sql: `INSERT INTO run_events
+      sql: `INSERT OR IGNORE INTO run_events
         (id, run_id, sequence, type, summary, payload_json, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       args: [id, input.runId, input.sequence, input.type, input.summary, json(input.payload), nowIso()],
     });
     return id;
+  }
+
+  async listEvents(runId: string, afterSequence = -1, limit = 500) {
+    const result = await this.client.execute({
+      sql: `SELECT id, sequence, type, summary, payload_json, created_at
+        FROM run_events WHERE run_id = ? AND sequence > ?
+        ORDER BY sequence ASC LIMIT ?`,
+      args: [runId, afterSequence, limit],
+    });
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      sequence: Number(row.sequence),
+      type: String(row.type),
+      summary: String(row.summary),
+      payload: JSON.parse(String(row.payload_json)),
+      createdAt: String(row.created_at),
+    }));
   }
 
   async storeArtifact(input: {
@@ -411,6 +495,49 @@ export class ResearchRepository {
       args: [runId, path],
     });
     return result.rows[0] ?? null;
+  }
+
+  async listArtifacts(runId: string) {
+    const result = await this.client.execute({
+      sql: `SELECT artifacts.id, artifacts.path, artifacts.media_type,
+        artifacts.content_hash, artifacts.size_bytes, artifacts.parent_artifact_id,
+        artifacts.created_at FROM artifacts
+        JOIN (
+          SELECT path, MAX(rowid) AS latest_rowid FROM artifacts
+          WHERE run_id = ? GROUP BY path
+        ) latest ON latest.latest_rowid = artifacts.rowid
+        ORDER BY artifacts.path`,
+      args: [runId],
+    });
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      path: String(row.path),
+      mediaType: String(row.media_type),
+      contentHash: String(row.content_hash),
+      sizeBytes: Number(row.size_bytes),
+      parentArtifactId: rowString(row.parent_artifact_id),
+      createdAt: String(row.created_at),
+    }));
+  }
+
+  async findArtifact(runId: string, artifactId: string) {
+    const result = await this.client.execute({
+      sql: `SELECT id, path, media_type, content_hash, content, size_bytes,
+        parent_artifact_id, created_at FROM artifacts WHERE run_id = ? AND id = ?`,
+      args: [runId, artifactId],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      id: String(row.id),
+      path: String(row.path),
+      mediaType: String(row.media_type),
+      contentHash: String(row.content_hash),
+      content: String(row.content),
+      sizeBytes: Number(row.size_bytes),
+      parentArtifactId: rowString(row.parent_artifact_id),
+      createdAt: String(row.created_at),
+    };
   }
 
   async addFeedback(input: {

@@ -2,7 +2,7 @@
   "name": "vercel-eve-demo",
   "version": "0.1.0",
   "private": true,
-  "description": "用 Vercel eve 验证 Markdown + CLI skills 可移植性的中文深度调研 Demo",
+  "description": "Owner-only Eve personal research workbench with inspectable Markdown artifacts",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -41,6 +41,9 @@
     "next": "16.2.6",
     "react": "19.2.6",
     "react-dom": "19.2.6",
+    "react-markdown": "^10.1.0",
+    "rehype-sanitize": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "zod": "4.4.3"
   },
   "devDependencies": {

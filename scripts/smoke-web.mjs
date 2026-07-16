@@ -125,7 +125,9 @@ async function run() {
 
   const page = await fetch(`${origin}/`, { headers: { Cookie: cookie } });
   const html = await page.text();
-  if (!html.includes("深度调研")) throw new Error("首页缺少产品标题");
+  if (!html.includes("Restoring the research workspace")) {
+    throw new Error("首页缺少 Workbench bootstrap");
+  }
 
   const healthResponse = await fetch(`${origin}/api/health`, {
     headers: { Cookie: cookie },
@@ -144,12 +146,16 @@ async function run() {
   }
   const webSearch = eveInfo.tools?.authored?.find((tool) => tool.name === "web_search");
   const webExtract = eveInfo.tools?.authored?.find((tool) => tool.name === "web_extract");
+  const publishArtifacts = eveInfo.tools?.authored?.find(
+    (tool) => tool.name === "publish_artifacts",
+  );
   const skillNames = new Set(
     eveInfo.skills?.static?.map((skill) => skill.name) ?? [],
   );
   if (
     !webSearch?.replacesFrameworkTool ||
     !webExtract ||
+    !publishArtifacts ||
     !["deep-research", "tavily", "external-writing"].every((name) =>
       skillNames.has(name),
     )
@@ -159,7 +165,67 @@ async function run() {
   if (!eveInfo.tools?.disabledFramework?.includes("bash")) {
     throw new Error("Eve manifest 未禁用 built-in bash");
   }
-  console.log("Web smoke passed: owner gate + page + health + Eve rewrite");
+
+  const runResponse = await fetch(`${origin}/api/runs`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      question: "Verify the Workbench product projection",
+      context: "Offline Web smoke",
+      constraints: { audience: "test" },
+    }),
+  });
+  if (!runResponse.ok) throw new Error(`创建 product run 失败：${runResponse.status}`);
+  const run = await runResponse.json();
+  const sessionId = "web-smoke-eve-session";
+  const attachResponse = await fetch(`${origin}/api/runs/${run.runId}`, {
+    method: "PATCH",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({ eveSessionId: sessionId }),
+  });
+  if (!attachResponse.ok) throw new Error("product run 无法绑定 Eve session");
+  const eventResponse = await fetch(`${origin}/api/runs/${run.runId}/events`, {
+    method: "POST",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      sourceSessionId: sessionId,
+      startIndex: 0,
+      events: [
+        { type: "session.started", data: { sequence: 0 } },
+        {
+          type: "actions.requested",
+          data: {
+            sequence: 1,
+            actions: [
+              {
+                kind: "tool-call",
+                callId: "call-1",
+                toolName: "web_search",
+                input: { query: "test", authorization: "must-not-persist" },
+              },
+            ],
+          },
+        },
+        { type: "session.waiting", data: { sequence: 2, continuationToken: "secret" } },
+      ],
+    }),
+  });
+  if (!eventResponse.ok) throw new Error("Eve event projection 写入失败");
+  const productRun = await (
+    await fetch(`${origin}/api/runs/${run.runId}`, { headers: { Cookie: cookie } })
+  ).json();
+  const productJson = JSON.stringify(productRun);
+  if (productRun.events?.length !== 3 || !productJson.includes("[REDACTED]")) {
+    throw new Error("product event projection 缺少 timeline 或 redaction");
+  }
+  if (productJson.includes("must-not-persist") || productJson.includes('"secret"')) {
+    throw new Error("product event projection 泄漏 secret");
+  }
+  await fetch(`${origin}/api/runs/${run.runId}`, {
+    method: "DELETE",
+    headers: { Cookie: cookie },
+  });
+  console.log("Web smoke passed: gate + Workbench APIs + Eve manifest");
 }
 
 try {

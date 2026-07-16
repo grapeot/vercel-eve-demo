@@ -14,5 +14,6 @@ export async function GET(request: NextRequest) {
     enabled: process.env.CODEX_EXPERIMENT_ENABLED === "1",
     connected: credential?.status === "active",
     expiresAt: credential?.status === "active" ? credential.expiresAt : null,
+    flow: process.env.VERCEL === "1" ? "device" : "browser",
   });
 }

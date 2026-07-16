@@ -15,6 +15,8 @@
 - usage credits 与美元估算。
 - Skill Bundle manifest 与 lockfile 生成。
 - deep-research skill 的必要 contract。
+- Eve event projector 的 reasoning drop、credential redaction、Tavily output minimization 和 run status mapping。
+- owner-scoped run/session mapping、event cursor 幂等写入、immutable artifact parent revision 与 hash-anchored feedback。
 
 ## eve Session Smoke
 
@@ -24,7 +26,7 @@
 
 `npm run build` 先执行 `eve build`，再执行 `next build`。两步都必须在没有 credential 时成功。
 
-`npm run test:web` 使用临时本地 libSQL database 和独立 Next dist directory 启动 Next dev server。它先验证未授权请求进入统一 challenge gate、错误 challenge 返回 401、正确 challenge 签发 cookie，再检查首页、`/api/health` 和 Next 到 Eve 的 `/eve/v1/info` rewrite。测试结束删除临时 database，不读取 `.env.local`。
+`npm run test:web` 使用临时本地 libSQL database、独立 Eve app copy 和独立 Next dist directory。它验证统一 challenge gate、cookie、首页与 health；检查 Eve manifest 中三个 static skills、typed Tavily tools、`publish_artifacts` 和禁用的 `bash`；再创建 owner run、绑定 Eve session、写入 normalized events，并断言 credential/continuation token 没有持久化。测试结束删除全部临时数据，不读取 `.env.local`。
 
 ## Turso Migration
 
@@ -45,9 +47,9 @@ TAVILY_API_KEY=<real key>
 
 测试直接调用与 Eve tool 相同的 TypeScript executor，依次执行一次 `web_search` 和一次 `web_extract`，验证 Tavily REST credential boundary、结果 schema 与 usage，不调用模型。它会消耗少量 Tavily credits，但不创建 Sandbox 或向 Sandbox 注入 credential。
 
-模型 live smoke 通过浏览器、curl 或 `npm run test:eve:live` 执行。验收：能加载完整 baked-in Skill Bundle、调用 authored `web_search` / `web_extract`、返回 Tavily来源，并在 run metadata 中看到 token/tool timing。
+模型 live acceptance 以 Workbench 浏览器流程为准。验收：完成 owner Codex OAuth；创建 product run 并绑定 Eve root session；加载完整 Skill Bundle；调用 authored `web_search` / `web_extract`；写入并 checkpoint `report.md`；页面显示 normalized timeline、sanitized preview、source、download 与 content hash；对当前 hash 提交 feedback 后能续写同一 session 并生成 parent-linked revision。
 
-也可显式运行 `npm run test:eve:live`。它要求 `RUN_LIVE_EVE_SMOKE=1`（由 npm script 设置）、`EVE_DEMO_MODE=live`、`SEARCH_BACKEND=tavily`、`ALLOW_LIVE_API=1` 和两个 credential；测试有 120 秒硬超时，且不属于默认 CI。
+`npm run test:eve:live` 仍可用于底层 Eve transport smoke，但不替代上述产品 acceptance。它要求 `RUN_LIVE_EVE_SMOKE=1`（由 npm script 设置）、`EVE_DEMO_MODE=live`、`SEARCH_BACKEND=tavily`、`ALLOW_LIVE_API=1` 和所需 credential；测试有 120 秒硬超时，且不属于默认 CI。
 
 ## Public 检查
 
@@ -61,4 +63,4 @@ npm run test:eve
 npm run test:web
 ```
 
-live test 保持 opt-in，不属于默认 CI。
+Node 不是 24 时，在本地使用 `npx --yes --package=node@24 --call 'npm run verify'`。live test 和 owner browser OAuth acceptance 保持 opt-in，不属于默认 CI。

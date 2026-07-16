@@ -134,20 +134,30 @@ describe("Turso storage", () => {
       workspaceId: "workspace-1",
       skillBundleVersion: "bundle-v1",
     });
+    expect(
+      await research.attachSession({
+        runId,
+        accessSessionId: "access-1",
+        eveSessionId: "eve-session-1",
+      }),
+    ).toBe(true);
+    expect(await research.findRunByEveSession("eve-session-1")).toMatchObject({
+      id: runId,
+      status: "running",
+    });
     await research.appendEvent({
       runId,
       sequence: 1,
       type: "session.started",
       summary: "Research started",
     });
-    await expect(
-      research.appendEvent({
-        runId,
-        sequence: 1,
-        type: "duplicate",
-        summary: "Duplicate cursor",
-      }),
-    ).rejects.toThrow();
+    await research.appendEvent({
+      runId,
+      sequence: 1,
+      type: "duplicate",
+      summary: "Duplicate cursor",
+    });
+    expect(await research.listEvents(runId)).toHaveLength(1);
 
     const first = await research.storeArtifact({
       runId,
@@ -173,5 +183,11 @@ describe("Turso storage", () => {
     const latest = await research.findLatestArtifact(runId, "report.md");
     expect(latest?.content).toBe("# Revised");
     expect(latest?.parent_artifact_id).toBe(first.id);
+    expect(await research.listArtifacts(runId)).toEqual([
+      expect.objectContaining({ id: second.id, path: "report.md" }),
+    ]);
+    expect(await research.findArtifact(runId, first.id)).toMatchObject({
+      content: "# First",
+    });
   });
 });

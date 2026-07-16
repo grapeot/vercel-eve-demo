@@ -1,10 +1,22 @@
 import { spawn } from "node:child_process";
+import { cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 const port = 4317;
 const origin = `http://127.0.0.1:${port}`;
 const logs = [];
+const tempDirectory = await mkdtemp(join(tmpdir(), "eve-smoke-"));
+const eveAppDirectory = join(tempDirectory, "eve-app");
+await mkdir(eveAppDirectory);
+for (const path of ["agent", "src", "package.json", "tsconfig.json"]) {
+  await cp(path, join(eveAppDirectory, path), { recursive: true });
+}
+await symlink(join(process.cwd(), "node_modules"), join(eveAppDirectory, "node_modules"));
+
 const child = spawn("./node_modules/.bin/eve", ["dev", "--no-ui", "--port", String(port)], {
+  cwd: eveAppDirectory,
   env: {
     ...process.env,
     EVE_DEMO_MODE: "mock",
@@ -87,4 +99,5 @@ try {
   child.kill("SIGTERM");
   await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(2_000)]);
   if (child.exitCode === null) child.kill("SIGKILL");
+  await rm(tempDirectory, { recursive: true, force: true });
 }

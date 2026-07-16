@@ -4,6 +4,11 @@
 
 ### 2026-07-16
 
+- 完成 Personal Research Workbench 产品层：三栏 UI 支持 run history、研究约束、normalized Eve timeline、artifact tree、Markdown source/sanitized preview/download、Codex connect 和 hash-anchored feedback continuation；页面刷新后可恢复最近 waiting session。
+- 新增 owner-scoped run APIs：创建/list/detail、Eve root session attach、cancel、event batch ingest/query、artifact list/read/download/report 与 feedback；同一 owner access session 同时只允许一个 active run，跨 run/session mapping 冲突 fail closed。
+- 新增 Eve event projector：reasoning event 不持久化，secret/credential/token 字段递归脱敏，Tavily search 只保留来源 metadata，extract 只保留 URL/content length，并把 skill、tool、subagent、file、usage、waiting/failure 状态映射为可检查 timeline。
+- 新增 `publish_artifacts` typed tool：只接受安全的相对 Markdown path，从共享 Sandbox 读回文件并写入 Turso immutable revision；每版记录 SHA-256、parent artifact ID 和 size，agent contract 强制完成前 checkpoint `report.md`。
+- Workbench 阶段验证通过：8 files / 33 tests；独立 Web smoke 覆盖 challenge、run/session attach、event projection/redaction、完整 Skill Bundle 与 publish tool manifest；Node 24 `npm run verify` 完成 Eve/Next production build 和 public-content scan。真实 owner Codex browser OAuth、report publish 与 feedback revision 仍是下一步 opt-in acceptance。
 - 将 Tavily production transport 从 Sandbox CLI 完整迁移到 app-runtime TypeScript REST executor：`web_search` 强制 `include_answer=false` / `include_raw_content=false`，新增 `web_extract`，localhost/Vercel 复用相同 schema、normalization、redaction 和 usage contract；Sandbox 不再接触 Tavily key。
 - 完整 vendor progressive Skill Bundle：3 个 root skills（deep-research、Tavily、external-writing）和 11 个 reference/voice files，覆盖来源分层、artifact contract、parallel children、search/extract、Thesis Catalog、自然中文 prose、report rubric 和 3 份 synthetic public-safe voice samples；lockfile 记录全部 14 个文件 hash。
 - 使用 private `.env.local` 的 Tavily credential 完成真实 app-runtime search + extract smoke：2 个搜索来源、1 个正文提取，credential 未进入输出。默认测试现为 7 files / 30 tests；Web smoke 额外检查两个 typed tools 与三个 static skills。

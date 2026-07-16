@@ -14,3 +14,4 @@
 - 把 Sandbox workspace 当作主要交付界面：先写 request/plan/evidence artifacts，再加载 `external-writing` 完成三遍顺序写作。
 - 成功 run 必须写出 `report.md`。最后一条 chat message 只给简短结论、限制、usage 和 `report.md` 链接，不要把全文重新贴进 chat。
 - Built-in child agents 共享 workspace 但拥有 fresh history。给每个 child 独立文件，禁止并行写同一路径，也不要输出 hidden reasoning。
+- 每完成一个重要 artifact 阶段，调用 `publish_artifacts` checkpoint 相关 Markdown。最终回复前必须至少 checkpoint `report.md` 和续写需要的核心 evidence/brief 文件。
