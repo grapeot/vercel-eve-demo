@@ -72,10 +72,22 @@ interface DeviceAttempt {
   intervalSeconds: number;
 }
 
-const suggestions = [
-  "Agent filesystem 什么时候应该是 source of truth，什么时候只应是 projection？",
-  "Codex subscription OAuth 接入 Web research harness 的真实边界是什么？",
-  "深度调研 Agent 如何把搜索过程变成可检查、可续写的知识工作？",
+const decisionQuestions = [
+  {
+    question: "Agent filesystem 什么时候应该是 source of truth，什么时候只应是 projection？",
+  },
+  {
+    question: "Codex subscription OAuth 接入 Web research harness 的真实边界是什么？",
+  },
+  {
+    question: "深度调研 Agent 如何把搜索过程变成可检查、可续写的知识工作？",
+  },
+  {
+    question: "今天美国股市为什么大跌？",
+    context: "美国股市",
+    audience: "基础从业者",
+    length: "1000-2000 字",
+  },
 ];
 
 async function readWaitingCursor(sessionId: string): Promise<ResumeState> {
@@ -165,7 +177,7 @@ function Workbench({
   initialSession: ResumeState;
 }) {
   const agent = useEveAgent({ initialSession });
-  const [question, setQuestion] = useState(suggestions[0]);
+  const [question, setQuestion] = useState(decisionQuestions[0].question);
   const [context, setContext] = useState("");
   const [audience, setAudience] = useState("技术从业者");
   const [length, setLength] = useState("2000-3000 字");
@@ -465,7 +477,7 @@ function Workbench({
             </div>
             <button className="primary" type="submit" disabled={busy || !question.trim() || liveNeedsCodex}>{busy ? "Building evidence..." : "Start research"}</button>
           </form>
-          <div className="suggestion-list"><span>QUESTION STARTERS</span>{suggestions.map((item) => <button key={item} onClick={() => setQuestion(item)} disabled={busy}>{item}</button>)}</div>
+          <div className="suggestion-list"><span>QUESTION STARTERS</span>{decisionQuestions.map((item) => <button key={item.question} onClick={() => { setQuestion(item.question); setContext(item.context ?? ""); setAudience(item.audience ?? "技术从业者"); setLength(item.length ?? "2000-3000 字"); }} disabled={busy}>{item.question}</button>)}</div>
           <div className="run-history"><div className="history-heading"><span>RECENT RUNS</span>{runId ? <button onClick={() => void archiveCurrentRun()}>Archive current</button> : null}</div>{runs.map((run) => <button className={run.id === runId ? "active" : ""} key={run.id} onClick={() => { setRunId(run.id); setSelectedArtifactId(null); }}><b>{run.question}</b><small>{run.status} · {new Date(run.created_at).toLocaleDateString()}</small></button>)}</div>
         </aside>
 

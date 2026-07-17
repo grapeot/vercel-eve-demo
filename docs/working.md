@@ -6,6 +6,7 @@
 
 - 将 Codex credential 从 8 小时 challenge access session 提升为稳定 owner identity：schema v3 保留最新 active credential，首次 resolve 将旧 session AAD 密文 rewrap 为 owner AAD；OAuth attempt 仍绑定短期 session。服务重启、cookie 到期或重新 challenge 不再触发重复 Codex OAuth。
 - 修复本地 live run 在 Docker daemon 不存在时重试失败并永久停在 `queued`：local Eve 改用无需 Docker daemon 的 microsandbox；若 session 建立前 `agent.send` 失败，则以条件更新将 unattached queued run 标记 `failed`，释放 single-active-run guard。
+- QUESTION STARTERS 改为完整 decision question presets；新增“今天美国股市为什么大跌？”，自动填入美国股市 context、基础从业者 audience 和 1000-2000 字篇幅。
 
 ### 2026-07-16
 
