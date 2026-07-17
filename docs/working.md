@@ -4,6 +4,7 @@
 
 ### 2026-07-16
 
+- 修复 live run 永久停留 `queued` 的映射竞态：Eve 已启动 durable root session 时，server-side `step.started` 现在按已认证 owner 原子绑定唯一 queued Workbench run；浏览器 PATCH 仅作为幂等补充，页面刷新或 stream 生命周期不再让 product run 与 Eve session 脱钩。
 - 完成真实 owner Codex + Tavily 产品验收：首轮 research 产生 248 个 Eve raw events，包含 4 次 search、1 次 extract、3 个 child stages 和 2 次 artifact checkpoints；normalized timeline 持久化 140 个 events，最终保留 7 个 latest artifacts。随后对当前 report hash 提交 feedback，同一 session 产生 60 个续写 events，并成功写入 2,272-byte、parent-linked 的新 `report.md` revision。
 - live 验收发现并修复两项只会在 Codex subscription backend 暴露的兼容性：Responses 强制 `store=false`，同时通过 AI SDK middleware 请求并 replay `reasoning.encrypted_content`、移除不可复用的 persisted reasoning ID；`publish_artifacts` JSON Schema 删除 provider 不支持的 regex lookaround，并在 executor 内继续 fail-closed 拒绝 absolute/traversal path。
 - 删除不再符合架构的 direct Eve + AI Gateway live smoke。live 模型验收现在必须经 owner challenge access session、Codex OAuth、Workbench run mapping 和 artifact persistence 完整执行，避免用无法携带 owner principal 的旧脚本制造假阳性。

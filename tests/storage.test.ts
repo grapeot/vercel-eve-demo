@@ -135,6 +135,24 @@ describe("Turso storage", () => {
       skillBundleVersion: "bundle-v1",
     });
     expect(
+      await research.attachQueuedSession({
+        accessSessionId: "another-owner",
+        eveSessionId: "eve-session-1",
+      }),
+    ).toBe(false);
+    expect(
+      await research.attachQueuedSession({
+        accessSessionId: "access-1",
+        eveSessionId: "eve-session-1",
+      }),
+    ).toBe(true);
+    expect(
+      await research.attachQueuedSession({
+        accessSessionId: "access-1",
+        eveSessionId: "eve-session-2",
+      }),
+    ).toBe(false);
+    expect(
       await research.attachSession({
         runId,
         accessSessionId: "access-1",

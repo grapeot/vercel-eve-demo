@@ -379,6 +379,24 @@ export class ResearchRepository {
     return result.rowsAffected === 1;
   }
 
+  async attachQueuedSession(input: {
+    accessSessionId: string;
+    eveSessionId: string;
+  }): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE runs SET eve_session_id = ?, status = 'running', updated_at = ?
+        WHERE id = (
+          SELECT runs.id FROM runs
+          JOIN research_requests ON research_requests.id = runs.request_id
+          WHERE research_requests.access_session_id = ?
+            AND runs.status = 'queued' AND runs.eve_session_id IS NULL
+          ORDER BY runs.created_at DESC LIMIT 1
+        ) AND NOT EXISTS (SELECT 1 FROM runs WHERE eve_session_id = ?)`,
+      args: [input.eveSessionId, nowIso(), input.accessSessionId, input.eveSessionId],
+    });
+    return result.rowsAffected === 1;
+  }
+
   async findRunByEveSession(eveSessionId: string) {
     const result = await this.client.execute({
       sql: `SELECT id, request_id, eve_session_id, workspace_id, status,

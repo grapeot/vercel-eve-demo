@@ -3,6 +3,8 @@ import { mockModel } from "eve/evals";
 
 import { resolveRuntimeConfig } from "../src/config";
 import { resolveCodexModel } from "../src/codex/model";
+import { ResearchRepository } from "../src/storage/repositories";
+import { getDatabaseClient } from "../src/storage/server";
 
 const config = resolveRuntimeConfig();
 
@@ -68,6 +70,10 @@ export default defineAgent(
                 return unavailableCodexModel;
               }
               try {
+                await new ResearchRepository(getDatabaseClient()).attachQueuedSession({
+                  accessSessionId: initiator.principalId,
+                  eveSessionId: context.session.id,
+                });
                 return await resolveCodexModel(initiator.principalId);
               } catch {
                 return unavailableCodexModel;
