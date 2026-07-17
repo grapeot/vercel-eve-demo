@@ -25,6 +25,14 @@ export interface AccessSession {
   createdAt: string;
 }
 
+export type RunStatus =
+  | "queued"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
 export class AccessSessionRepository {
   constructor(private readonly client: Client) {}
 
@@ -460,12 +468,22 @@ export class ResearchRepository {
 
   async setRunStatus(
     runId: string,
-    status: "queued" | "running" | "waiting" | "completed" | "failed" | "cancelled",
+    status: RunStatus,
   ): Promise<void> {
-    await this.client.execute({
-      sql: "UPDATE runs SET status = ?, updated_at = ? WHERE id = ?",
-      args: [status, nowIso(), runId],
+    await this.advanceRunStatus(runId, status);
+  }
+
+  async advanceRunStatus(runId: string, status: RunStatus): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE runs SET status = ?, updated_at = ?
+        WHERE id = ? AND (
+          (status = 'queued' AND ? IN ('running', 'failed', 'cancelled')) OR
+          (status = 'running' AND ? IN ('waiting', 'completed', 'failed', 'cancelled')) OR
+          (status = 'waiting' AND ? IN ('running', 'completed', 'failed', 'cancelled'))
+        )`,
+      args: [status, nowIso(), runId, status, status, status],
     });
+    return result.rowsAffected === 1;
   }
 
   async failUnattachedRun(runId: string): Promise<boolean> {
@@ -488,16 +506,92 @@ export class ResearchRepository {
     const id = input.id ?? randomUUID();
     await this.client.execute({
       sql: `INSERT OR IGNORE INTO run_events
-        (id, run_id, sequence, type, summary, payload_json, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, input.runId, input.sequence, input.type, input.summary, json(input.payload), nowIso()],
+        (id, run_id, sequence, source_session_id, source_event_key,
+         source_created_at, type, summary, payload_json, created_at)
+        VALUES (?, ?, ?, 'legacy', ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        input.runId,
+        input.sequence,
+        `legacy:${input.runId}:${input.sequence}`,
+        nowIso(),
+        input.type,
+        input.summary,
+        json(input.payload),
+        nowIso(),
+      ],
     });
     return id;
   }
 
+  async appendProjectedEvent(input: {
+    id?: string;
+    runId: string;
+    sourceSessionId: string;
+    parentSessionId?: string | null;
+    sourceEventKey: string;
+    sourceCreatedAt: string;
+    type: string;
+    summary: string;
+    payload?: unknown;
+    runStatus?: Exclude<RunStatus, "queued">;
+  }): Promise<boolean> {
+    const createdAt = nowIso();
+    const results = await this.client.batch(
+      [
+        {
+          sql: `INSERT OR IGNORE INTO run_events
+            (id, run_id, sequence, source_session_id, parent_session_id,
+             source_event_key, source_created_at, type, summary, payload_json, created_at)
+            SELECT ?, ?, COALESCE(MAX(sequence), -1) + 1, ?, ?, ?, ?, ?, ?, ?, ?
+            FROM run_events WHERE run_id = ?`,
+          args: [
+            input.id ?? randomUUID(),
+            input.runId,
+            input.sourceSessionId,
+            input.parentSessionId ?? null,
+            input.sourceEventKey,
+            input.sourceCreatedAt,
+            input.type,
+            input.summary,
+            json(input.payload),
+            createdAt,
+            input.runId,
+          ],
+        },
+        {
+          sql: `UPDATE runs SET
+              status = CASE
+                WHEN status IN ('completed', 'failed', 'cancelled') OR ? IS NULL THEN status
+                WHEN status = 'queued' AND ? IN ('running', 'failed', 'cancelled') THEN ?
+                WHEN status = 'running' AND ? IN ('waiting', 'completed', 'failed', 'cancelled') THEN ?
+                WHEN status = 'waiting' AND ? IN ('running', 'completed', 'failed', 'cancelled') THEN ?
+                ELSE status
+              END,
+              updated_at = ?
+            WHERE id = ? AND changes() = 1`,
+          args: [
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            input.runStatus ?? null,
+            createdAt,
+            input.runId,
+          ],
+        },
+      ],
+      "write",
+    );
+    return results[0].rowsAffected === 1;
+  }
+
   async listEvents(runId: string, afterSequence = -1, limit = 500) {
     const result = await this.client.execute({
-      sql: `SELECT id, sequence, type, summary, payload_json, created_at
+      sql: `SELECT id, sequence, source_session_id, parent_session_id,
+        source_created_at, type, summary, payload_json, created_at
         FROM run_events WHERE run_id = ? AND sequence > ?
         ORDER BY sequence ASC LIMIT ?`,
       args: [runId, afterSequence, limit],
@@ -505,6 +599,9 @@ export class ResearchRepository {
     return result.rows.map((row) => ({
       id: String(row.id),
       sequence: Number(row.sequence),
+      sourceSessionId: String(row.source_session_id),
+      parentSessionId: rowString(row.parent_session_id),
+      sourceCreatedAt: String(row.source_created_at),
       type: String(row.type),
       summary: String(row.summary),
       payload: JSON.parse(String(row.payload_json)),

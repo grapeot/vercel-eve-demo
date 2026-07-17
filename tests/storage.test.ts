@@ -7,6 +7,7 @@ import {
   OAuthCredentialRepository,
   ResearchRepository,
 } from "@/src/storage/repositories";
+import { persistRootEveEvent } from "@/src/events/durability";
 import { migrateDatabase, SCHEMA_VERSION } from "@/src/storage/schema";
 
 describe("Turso storage", () => {
@@ -24,7 +25,12 @@ describe("Turso storage", () => {
     const result = await client.execute(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(result.rows.map((row) => Number(row.version))).toEqual([1, 2, SCHEMA_VERSION]);
+    expect(result.rows.map((row) => Number(row.version))).toEqual([
+      1,
+      2,
+      3,
+      SCHEMA_VERSION,
+    ]);
   });
 
   it("creates, validates, hashes metadata, and revokes access sessions", async () => {
@@ -178,6 +184,55 @@ describe("Turso storage", () => {
     });
     expect(await research.listEvents(runId)).toHaveLength(1);
 
+    const projectedInput = {
+      runId,
+      sourceSessionId: "eve-session-1",
+      sourceEventKey: "event-key-1",
+      sourceCreatedAt: "2026-07-17T12:00:00.000Z",
+      type: "session.waiting",
+      summary: "Waiting",
+      runStatus: "waiting" as const,
+    };
+    expect(await research.appendProjectedEvent(projectedInput)).toBe(true);
+    expect(await research.appendProjectedEvent(projectedInput)).toBe(false);
+    expect(
+      await Promise.all(
+        Array.from({ length: 8 }, (_, index) =>
+          research.appendProjectedEvent({
+            ...projectedInput,
+            sourceEventKey: `concurrent-${index}`,
+            sourceCreatedAt: `2026-07-17T12:00:0${index + 1}.000Z`,
+            type: "tool.completed",
+            summary: `Completed ${index}`,
+            runStatus: "running",
+          }),
+        ),
+      ),
+    ).toEqual(Array(8).fill(true));
+    const projectedEvents = await research.listEvents(runId);
+    expect(new Set(projectedEvents.map((event) => event.sequence)).size).toBe(
+      projectedEvents.length,
+    );
+    await research.appendProjectedEvent({
+      ...projectedInput,
+      sourceEventKey: "failed-event",
+      sourceCreatedAt: "2026-07-17T12:01:00.000Z",
+      type: "turn.failed",
+      summary: "Failed",
+      runStatus: "failed",
+    });
+    await research.appendProjectedEvent({
+      ...projectedInput,
+      sourceEventKey: "late-running-event",
+      sourceCreatedAt: "2026-07-17T12:02:00.000Z",
+      type: "turn.started",
+      summary: "Late start",
+      runStatus: "running",
+    });
+    expect(await research.findRunByEveSession("eve-session-1")).toMatchObject({
+      status: "failed",
+    });
+
     const first = await research.storeArtifact({
       runId,
       path: "report.md",
@@ -241,5 +296,51 @@ describe("Turso storage", () => {
       eveSessionId: "eve-session-attached",
     });
     expect(await research.failUnattachedRun(attachedRunId)).toBe(false);
+  });
+
+  it("persists root hook events without a browser collector", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-hook",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-hook",
+      question: "Does the hook persist events?",
+    });
+    const runId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-hook",
+      skillBundleVersion: "bundle-v1",
+    });
+    const session = {
+      id: "eve-hook-session",
+      auth: {
+        initiator: { principalId: "access-hook" },
+        current: { principalId: "access-hook" },
+      },
+    };
+
+    expect(
+      await persistRootEveEvent({
+        repository: research,
+        session,
+        event: {
+          type: "session.started",
+          data: {},
+          meta: { at: "2026-07-17T12:00:00.000Z" },
+        },
+      }),
+    ).toBe(true);
+    expect(await research.findRunByEveSession("eve-hook-session")).toMatchObject({
+      id: runId,
+      status: "running",
+    });
+    expect(await research.listEvents(runId)).toEqual([
+      expect.objectContaining({
+        sourceSessionId: "eve-hook-session",
+        type: "session.started",
+      }),
+    ]);
   });
 });

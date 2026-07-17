@@ -210,6 +210,12 @@ export function projectEveEvent(event: unknown): ProjectedEvent | null {
       payload: redact({ code: data.code, message: data.message }) as JsonRecord,
       runStatus: "failed",
     },
+    "turn.failed": {
+      type: "turn.failed",
+      summary: String(data.message ?? "Research turn failed"),
+      payload: redact({ code: data.code, message: data.message, details: data.details }) as JsonRecord,
+      runStatus: "failed",
+    },
     "turn.cancelled": {
       type: "turn.cancelled",
       summary: "Research turn cancelled",

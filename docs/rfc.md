@@ -345,6 +345,8 @@ session.failed
 
 Eve root stream 原生提供 session、turn、step、action、message 和 `subagent.called/completed`。Child 内部进度位于独立 child stream，产品 projector 遇到 `childSessionId` 后递归订阅。Skill 与 file 没有独立 domain event，由 generic action 投影；精确 tool start/end、hash 和 artifact snapshot 由 authored wrapper 补充。Turso 的 `run_events` 是 inspector index，不是 hidden reasoning archive。
 
+Root stream 由 `agent/hooks/run_inspector.ts` 在 event durable accept 后直接投影到 Turso。写入使用脱敏结果、source session、durable `meta.at` 和 canonical payload 生成稳定 fingerprint；repository 在同一 write transaction 中完成去重、run-global sequence、heartbeat 和 terminal-absorbing 状态迁移。浏览器只轮询 normalized timeline，不参与 event durability。Eve 0.24.4 的 parent hook 不进入 child scope，因此 child 内部细粒度事件仍需后续 server collector；root 上的 `subagent.called/completed` 已保留。
+
 Root raw stream 不直接发给浏览器。Server-side projector 负责：
 
 - root/child event fan-out；

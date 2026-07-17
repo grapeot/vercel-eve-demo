@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { createSourceEventKey } from "@/src/events/durability";
 import { projectEveEvent } from "@/src/events/projector";
 import { resolveOwnedRun } from "@/src/runs/access";
 
@@ -44,19 +45,23 @@ export async function POST(
   for (const [offset, event] of input.data.events.entries()) {
     const projected = projectEveEvent(event);
     if (!projected) continue;
-    const sequence = input.data.startIndex + offset;
-    await owned.repository.appendEvent({
-      id: `${runId}:${input.data.sourceSessionId}:${sequence}`,
+    const sourceCreatedAt = `browser:${input.data.startIndex + offset}`;
+    const inserted = await owned.repository.appendProjectedEvent({
+      id: `${runId}:${input.data.sourceSessionId}:${sourceCreatedAt}`,
       runId,
-      sequence,
+      sourceSessionId: input.data.sourceSessionId,
+      sourceEventKey: createSourceEventKey({
+        sourceSessionId: input.data.sourceSessionId,
+        sourceCreatedAt,
+        projected,
+      }),
+      sourceCreatedAt,
       type: projected.type,
       summary: projected.summary,
       payload: projected.payload,
+      runStatus: projected.runStatus,
     });
-    if (projected.runStatus) {
-      await owned.repository.setRunStatus(runId, projected.runStatus);
-    }
-    persisted += 1;
+    if (inserted) persisted += 1;
   }
   return NextResponse.json({ persisted });
 }

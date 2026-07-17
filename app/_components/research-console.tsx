@@ -4,7 +4,6 @@ import {
   startTransition,
   useDeferredValue,
   useEffect,
-  useRef,
   useState,
   type FormEvent,
 } from "react";
@@ -195,8 +194,6 @@ function Workbench({
   const [feedback, setFeedback] = useState("");
   const [selectedText, setSelectedText] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [attached, setAttached] = useState(Boolean(initialSession.sessionId));
-  const persistedEvents = useRef(0);
   const deferredTimeline = useDeferredValue(timeline);
   const deferredContent = useDeferredValue(selectedArtifact?.content ?? "");
   const busy = agent.status === "submitted" || agent.status === "streaming";
@@ -255,45 +252,6 @@ function Workbench({
     // runId and busy intentionally define the polling lifecycle.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runId, busy]);
-
-  useEffect(() => {
-    if (!runId || !currentSessionId || attached) return;
-    let active = true;
-    void fetch(`/api/runs/${runId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ eveSessionId: currentSessionId }),
-    }).then((response) => {
-      if (active && response.ok) {
-        setAttached(true);
-        void refreshRuns();
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [runId, currentSessionId, attached]);
-
-  useEffect(() => {
-    if (!runId || !currentSessionId || !attached) return;
-    const startIndex = persistedEvents.current;
-    const batch = agent.events.slice(startIndex);
-    if (batch.length === 0) return;
-    persistedEvents.current = agent.events.length;
-    void fetch(`/api/runs/${runId}/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sourceSessionId: currentSessionId, startIndex, events: batch }),
-    }).then((response) => {
-      if (!response.ok) persistedEvents.current = Math.min(persistedEvents.current, startIndex);
-      else {
-        void refreshRun(runId);
-        void refreshRuns();
-      }
-    });
-    // agent.events is the authoritative append-only Eve stream.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agent.events, attached, currentSessionId, runId]);
 
   useEffect(() => {
     if (!selectedArtifactId || !runId) return;
@@ -365,8 +323,6 @@ function Workbench({
       return;
     }
     agent.reset();
-    persistedEvents.current = 0;
-    setAttached(false);
     setRunId(payload.runId);
     setRunStatus("queued");
     setTimeline([]);

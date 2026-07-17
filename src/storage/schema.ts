@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -64,6 +64,10 @@ const schemaStatements = [
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
     sequence INTEGER NOT NULL,
+    source_session_id TEXT NOT NULL,
+    parent_session_id TEXT,
+    source_event_key TEXT NOT NULL UNIQUE,
+    source_created_at TEXT NOT NULL,
     type TEXT NOT NULL,
     summary TEXT NOT NULL,
     payload_json TEXT NOT NULL DEFAULT '{}',
@@ -172,6 +176,50 @@ export async function migrateDatabase(client: Client): Promise<void> {
           "DROP TABLE oauth_credentials_v2",
           {
             sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)",
+            args: [new Date().toISOString()],
+          },
+        ],
+        "write",
+      );
+    } finally {
+      await client.execute("PRAGMA foreign_keys = ON");
+    }
+  }
+  const versionFour = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 4",
+  );
+  if (versionFour.rows.length === 0) {
+    await client.execute("PRAGMA foreign_keys = OFF");
+    try {
+      await client.batch(
+        [
+          "ALTER TABLE run_events RENAME TO run_events_v3",
+          `CREATE TABLE run_events (
+            id TEXT PRIMARY KEY,
+            run_id TEXT NOT NULL REFERENCES runs(id) ON DELETE CASCADE,
+            sequence INTEGER NOT NULL,
+            source_session_id TEXT NOT NULL,
+            parent_session_id TEXT,
+            source_event_key TEXT NOT NULL UNIQUE,
+            source_created_at TEXT NOT NULL,
+            type TEXT NOT NULL,
+            summary TEXT NOT NULL,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL,
+            UNIQUE(run_id, sequence)
+          )`,
+          `INSERT INTO run_events
+            (id, run_id, sequence, source_session_id, parent_session_id,
+             source_event_key, source_created_at, type, summary, payload_json, created_at)
+            SELECT id, run_id, sequence,
+              COALESCE((SELECT eve_session_id FROM runs WHERE runs.id = run_events_v3.run_id), 'legacy'),
+              NULL, 'legacy:' || run_id || ':' || sequence, created_at,
+              type, summary, payload_json, created_at
+            FROM run_events_v3`,
+          "DROP TABLE run_events_v3",
+          "CREATE INDEX IF NOT EXISTS run_events_cursor_idx ON run_events(run_id, sequence)",
+          {
+            sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (4, ?)",
             args: [new Date().toISOString()],
           },
         ],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { canonicalJson, createSourceEventKey } from "@/src/events/durability";
 import { projectEveEvent } from "@/src/events/projector";
 
 describe("Eve event projector", () => {
@@ -65,5 +66,39 @@ describe("Eve event projector", () => {
     expect(
       projectEveEvent({ type: "session.waiting", data: { continuationToken: "secret" } }),
     ).toMatchObject({ type: "session.waiting", runStatus: "waiting", payload: {} });
+  });
+
+  it("projects turn failures and fingerprints canonical redacted output", () => {
+    expect(
+      projectEveEvent({
+        type: "turn.failed",
+        data: { code: "MODEL_ERROR", message: "Failed safely", token: "private" },
+      }),
+    ).toMatchObject({ type: "turn.failed", runStatus: "failed" });
+
+    const first = projectEveEvent({
+      type: "actions.requested",
+      data: { actions: [{ input: { token: "first", b: 2, a: 1 }, toolName: "x", kind: "tool-call" }] },
+    });
+    const second = projectEveEvent({
+      type: "actions.requested",
+      data: { actions: [{ kind: "tool-call", toolName: "x", input: { a: 1, b: 2, token: "second" } }] },
+    });
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    expect(canonicalJson(first)).toBe(canonicalJson(second));
+    expect(
+      createSourceEventKey({
+        sourceSessionId: "session-1",
+        sourceCreatedAt: "2026-07-17T00:00:00.000Z",
+        projected: first!,
+      }),
+    ).toBe(
+      createSourceEventKey({
+        sourceSessionId: "session-1",
+        sourceCreatedAt: "2026-07-17T00:00:00.000Z",
+        projected: second!,
+      }),
+    );
   });
 });

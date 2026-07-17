@@ -16,11 +16,11 @@
 - Skill Bundle manifest 与 lockfile 生成。
 - deep-research skill 的必要 contract。
 - Eve event projector 的 reasoning drop、credential redaction、Tavily output minimization 和 run status mapping。
-- owner-scoped run/session mapping、event cursor 幂等写入、immutable artifact parent revision 与 hash-anchored feedback。
+- owner-scoped run/session mapping、runtime hook event fingerprint 幂等写入、并发 run-global cursor、terminal-absorbing 状态、immutable artifact parent revision 与 hash-anchored feedback。
 
 ## eve Session Smoke
 
-`npm run test:eve` 启动 `eve dev --no-ui`，等待 health，创建 mock session，读取 NDJSON stream，看到 `session.waiting` 后退出。它验证真实 eve compiler、session route、mock model、tool call 和 stream，不调用模型或 Tavily。
+`npm run test:eve` 启动 `eve dev --no-ui`，等待 health，创建 mock session，读取 NDJSON stream，看到 `session.waiting` 后退出。它验证真实 eve compiler、authored root event hook、session route、mock model、tool call 和 stream，不调用模型或 Tavily。
 
 ## Build
 
