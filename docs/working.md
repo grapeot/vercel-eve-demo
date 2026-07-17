@@ -2,6 +2,10 @@
 
 ## Changelog
 
+### 2026-07-17
+
+- 将 Codex credential 从 8 小时 challenge access session 提升为稳定 owner identity：schema v3 保留最新 active credential，首次 resolve 将旧 session AAD 密文 rewrap 为 owner AAD；OAuth attempt 仍绑定短期 session。服务重启、cookie 到期或重新 challenge 不再触发重复 Codex OAuth。
+
 ### 2026-07-16
 
 - 修复 live run 永久停留 `queued` 的映射竞态：Eve 已启动 durable root session 时，server-side `step.started` 现在按已认证 owner 原子绑定唯一 queued Workbench run；浏览器 PATCH 仅作为幂等补充，页面刷新或 stream 生命周期不再让 product run 与 Eve session 脱钩。

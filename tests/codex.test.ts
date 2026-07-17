@@ -13,6 +13,7 @@ import {
   stateHash,
 } from "@/src/codex/oauth";
 import { AccessSessionRepository } from "@/src/storage/repositories";
+import { CredentialCipher } from "@/src/security/encryption";
 import { migrateDatabase } from "@/src/storage/schema";
 
 function jwt(claims: unknown): string {
@@ -114,7 +115,7 @@ describe("Codex credential and transport", () => {
       fetchImpl: fetchImpl as typeof fetch,
       now: () => now,
     });
-    await service.storeTokens("access-1", {
+    await service.storeTokens({
       access_token: jwt({ chatgpt_account_id: "acct-1" }),
       refresh_token: "initial-refresh",
       expires_in: 1,
@@ -128,8 +129,8 @@ describe("Codex credential and transport", () => {
       now: () => now + 2_000,
     });
     const [first, second] = await Promise.all([
-      secondInstance.resolve("access-1"),
-      secondInstance.resolve("access-1"),
+      secondInstance.resolve(),
+      secondInstance.resolve(),
     ]);
     expect(first.accessToken).toBe(refreshedAccess);
     expect(second.accessToken).toBe(refreshedAccess);
@@ -141,6 +142,40 @@ describe("Codex credential and transport", () => {
     const serialized = JSON.stringify(stored.rows);
     expect(serialized).not.toContain("rotated-refresh");
     expect(serialized).not.toContain(refreshedAccess);
+  });
+
+  it("rewraps a legacy access-session credential under the stable owner context", async () => {
+    const now = Date.parse("2026-07-16T12:00:00.000Z");
+    const encryptionKey = randomBytes(32).toString("base64url");
+    const cipher = new CredentialCipher(encryptionKey);
+    const accessToken = jwt({ chatgpt_account_id: "acct-1" });
+    const service = createCredentialService({
+      client,
+      config,
+      encryptionKey,
+      now: () => now,
+    });
+    await service.storeTokens({
+      access_token: accessToken,
+      refresh_token: "legacy-refresh",
+      expires_in: 3600,
+    });
+    await client.execute({
+      sql: `UPDATE oauth_credentials SET legacy_access_session_id = ?,
+        encrypted_access_token = ?, encrypted_refresh_token = ?`,
+      args: [
+        "access-1",
+        cipher.encrypt(accessToken, "codex:access-1:access"),
+        cipher.encrypt("legacy-refresh", "codex:access-1:refresh"),
+      ],
+    });
+
+    await expect(service.resolve()).resolves.toMatchObject({ accessToken });
+    const stored = await client.execute(
+      "SELECT legacy_access_session_id, credential_version FROM oauth_credentials",
+    );
+    expect(stored.rows[0].legacy_access_session_id).toBeNull();
+    expect(Number(stored.rows[0].credential_version)).toBe(2);
   });
 
   it("rewrites only Responses calls and replaces generated authorization", async () => {

@@ -66,7 +66,6 @@ export function createCodexFetch(input: {
 }
 
 export async function resolveCodexModel(
-  accessSessionId: string,
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<LanguageModel> {
   const config = resolveCodexConfig(env);
@@ -78,7 +77,7 @@ export async function resolveCodexModel(
     client: getDatabaseClient(),
     config,
     encryptionKey: env.CREDENTIAL_ENCRYPTION_KEY,
-  }).resolve(accessSessionId);
+  }).resolve();
   const model = createOpenAI({
     name: "codex-owner",
     apiKey: "codex-owner-auth",

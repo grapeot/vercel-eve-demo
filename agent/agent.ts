@@ -74,7 +74,7 @@ export default defineAgent(
                   accessSessionId: initiator.principalId,
                   eveSessionId: context.session.id,
                 });
-                return await resolveCodexModel(initiator.principalId);
+                return await resolveCodexModel();
               } catch {
                 return unavailableCodexModel;
               }

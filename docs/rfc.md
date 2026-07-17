@@ -177,6 +177,7 @@ OAuth credential 保存：
 
 ```text
 credential_id
+owner_id
 encrypted_access_token
 encrypted_refresh_token
 expires_at
@@ -186,7 +187,7 @@ credential_version
 status
 ```
 
-需要 application-level AES-GCM envelope encryption。Encryption master key 进入 private server config，不进入 Turso。
+需要 application-level AES-GCM envelope encryption。Encryption master key 进入 private server config，不进入 Turso。`owner_id` 是稳定的应用身份，不是短期 challenge cookie 的 access session ID；access session 只授权当前浏览器请求使用 owner credential。重新 challenge、cookie 过期或服务重启都不应要求重新完成 Codex OAuth。
 
 ## 4. Eve Model Adapter
 
@@ -211,6 +212,8 @@ Credential 不进入：
 - model selection 的 durable scope。
 
 Eve 0.24.4 已确认允许 `step.started` 返回 live `LanguageModel`，而且这个 object 不进入 durable serialization。每个 step 从 credential service 解析 provider。Fallback 必须是 local fail-closed model，不能是 Gateway string model。
+
+每个 step 仍先验证 Eve initiator/current principal 对应有效 access session，但 credential resolver 按稳定 owner ID 读取密文。OAuth attempt 的 state、PKCE verifier 和 callback consumption 继续绑定发起登录的 access session；只有成功兑换后的长期 token bundle 提升为 owner-scoped credential。
 
 Codex OAuth transport 与标准 OpenAI API 不同。Custom adapter 预计要处理：
 

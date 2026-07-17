@@ -66,7 +66,7 @@ export async function ensureLocalCodexCallbackServer(): Promise<void> {
         client: getDatabaseClient(),
         config,
         encryptionKey,
-      }).storeTokens(attempt.accessSessionId, tokens);
+      }).storeTokens(tokens);
       await attempts.consume(attempt.id);
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(html("ChatGPT/Codex connected"));

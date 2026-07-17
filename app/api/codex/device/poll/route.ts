@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       client: getDatabaseClient(),
       config,
       encryptionKey,
-    }).storeTokens(owner.accessSessionId, tokens);
+    }).storeTokens(tokens);
     await attempts.consume(attempt.id);
     return NextResponse.json({ status: "connected" });
   } catch {

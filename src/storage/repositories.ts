@@ -79,7 +79,8 @@ export class AccessSessionRepository {
 
 export interface StoredCredential {
   id: string;
-  accessSessionId: string;
+  ownerId: string;
+  legacyAccessSessionId: string | null;
   encryptedAccessToken: string;
   encryptedRefreshToken: string | null;
   expiresAt: string;
@@ -93,16 +94,17 @@ export class OAuthCredentialRepository {
   constructor(private readonly client: Client) {}
 
   async upsert(input: Omit<StoredCredential, "id" | "version" | "status">): Promise<StoredCredential> {
-    const existing = await this.findBySession(input.accessSessionId);
+    const existing = await this.findByOwner(input.ownerId);
     const id = existing?.id ?? randomUUID();
     const version = (existing?.version ?? 0) + 1;
     const timestamp = nowIso();
     await this.client.execute({
       sql: `INSERT INTO oauth_credentials
-        (id, access_session_id, encrypted_access_token, encrypted_refresh_token,
+        (id, owner_id, legacy_access_session_id, encrypted_access_token, encrypted_refresh_token,
          account_id, scope, expires_at, credential_version, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
-        ON CONFLICT(access_session_id) DO UPDATE SET
+        VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, 'active', ?, ?)
+        ON CONFLICT(owner_id) DO UPDATE SET
+          legacy_access_session_id = NULL,
           encrypted_access_token = excluded.encrypted_access_token,
           encrypted_refresh_token = excluded.encrypted_refresh_token,
           account_id = excluded.account_id,
@@ -114,7 +116,7 @@ export class OAuthCredentialRepository {
           updated_at = excluded.updated_at`,
       args: [
         id,
-        input.accessSessionId,
+        input.ownerId,
         input.encryptedAccessToken,
         input.encryptedRefreshToken,
         input.accountId,
@@ -128,16 +130,17 @@ export class OAuthCredentialRepository {
     return { id, ...input, version, status: "active" };
   }
 
-  async findBySession(accessSessionId: string): Promise<StoredCredential | null> {
+  async findByOwner(ownerId: string): Promise<StoredCredential | null> {
     const result = await this.client.execute({
-      sql: `SELECT * FROM oauth_credentials WHERE access_session_id = ?`,
-      args: [accessSessionId],
+      sql: `SELECT * FROM oauth_credentials WHERE owner_id = ?`,
+      args: [ownerId],
     });
     const row = result.rows[0];
     if (!row) return null;
     return {
       id: String(row.id),
-      accessSessionId: String(row.access_session_id),
+      ownerId: String(row.owner_id),
+      legacyAccessSessionId: rowString(row.legacy_access_session_id),
       encryptedAccessToken: String(row.encrypted_access_token),
       encryptedRefreshToken: rowString(row.encrypted_refresh_token),
       expiresAt: String(row.expires_at),
@@ -149,7 +152,7 @@ export class OAuthCredentialRepository {
   }
 
   async rotateIfVersion(
-    accessSessionId: string,
+    ownerId: string,
     expectedVersion: number,
     input: Pick<
       StoredCredential,
@@ -160,13 +163,13 @@ export class OAuthCredentialRepository {
       sql: `UPDATE oauth_credentials SET encrypted_access_token = ?,
         encrypted_refresh_token = ?, expires_at = ?, credential_version = credential_version + 1,
         refresh_lease_until = NULL, updated_at = ?
-        WHERE access_session_id = ? AND credential_version = ? AND status = 'active'`,
+        WHERE owner_id = ? AND credential_version = ? AND status = 'active'`,
       args: [
         input.encryptedAccessToken,
         input.encryptedRefreshToken,
         input.expiresAt,
         nowIso(),
-        accessSessionId,
+        ownerId,
         expectedVersion,
       ],
     });
@@ -174,19 +177,19 @@ export class OAuthCredentialRepository {
   }
 
   async acquireRefreshLease(input: {
-    accessSessionId: string;
+    ownerId: string;
     expectedVersion: number;
     now: string;
     leaseUntil: string;
   }): Promise<boolean> {
     const result = await this.client.execute({
       sql: `UPDATE oauth_credentials SET refresh_lease_until = ?, updated_at = ?
-        WHERE access_session_id = ? AND credential_version = ? AND status = 'active'
+        WHERE owner_id = ? AND credential_version = ? AND status = 'active'
           AND (refresh_lease_until IS NULL OR refresh_lease_until <= ?)`,
       args: [
         input.leaseUntil,
         input.now,
-        input.accessSessionId,
+        input.ownerId,
         input.expectedVersion,
         input.now,
       ],
@@ -195,14 +198,37 @@ export class OAuthCredentialRepository {
   }
 
   async releaseRefreshLease(
-    accessSessionId: string,
+    ownerId: string,
     expectedVersion: number,
   ): Promise<void> {
     await this.client.execute({
       sql: `UPDATE oauth_credentials SET refresh_lease_until = NULL, updated_at = ?
-        WHERE access_session_id = ? AND credential_version = ?`,
-      args: [nowIso(), accessSessionId, expectedVersion],
+        WHERE owner_id = ? AND credential_version = ?`,
+      args: [nowIso(), ownerId, expectedVersion],
     });
+  }
+
+  async rewrapLegacyIfVersion(
+    ownerId: string,
+    expectedVersion: number,
+    encryptedAccessToken: string,
+    encryptedRefreshToken: string | null,
+  ): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE oauth_credentials SET encrypted_access_token = ?,
+        encrypted_refresh_token = ?, legacy_access_session_id = NULL,
+        credential_version = credential_version + 1, updated_at = ?
+        WHERE owner_id = ? AND credential_version = ?
+          AND legacy_access_session_id IS NOT NULL AND status = 'active'`,
+      args: [
+        encryptedAccessToken,
+        encryptedRefreshToken,
+        nowIso(),
+        ownerId,
+        expectedVersion,
+      ],
+    });
+    return result.rowsAffected === 1;
   }
 }
 

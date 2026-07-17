@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -134,5 +134,51 @@ export async function migrateDatabase(client: Client): Promise<void> {
       ],
       "write",
     );
+  }
+  const versionThree = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 3",
+  );
+  if (versionThree.rows.length === 0) {
+    await client.execute("PRAGMA foreign_keys = OFF");
+    try {
+      await client.batch(
+        [
+          "ALTER TABLE oauth_credentials RENAME TO oauth_credentials_v2",
+          `CREATE TABLE oauth_credentials (
+            id TEXT PRIMARY KEY,
+            owner_id TEXT NOT NULL UNIQUE,
+            legacy_access_session_id TEXT,
+            encrypted_access_token TEXT NOT NULL,
+            encrypted_refresh_token TEXT,
+            account_id TEXT,
+            scope TEXT,
+            expires_at TEXT NOT NULL,
+            credential_version INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL CHECK (status IN ('active', 'invalid', 'revoked')),
+            refresh_lease_until TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+          )`,
+          `INSERT INTO oauth_credentials
+            (id, owner_id, legacy_access_session_id, encrypted_access_token,
+             encrypted_refresh_token, account_id, scope, expires_at,
+             credential_version, status, refresh_lease_until, created_at, updated_at)
+            SELECT id, 'owner', access_session_id, encrypted_access_token,
+             encrypted_refresh_token, account_id, scope, expires_at,
+             credential_version, status, refresh_lease_until, created_at, updated_at
+            FROM oauth_credentials_v2
+            WHERE status = 'active'
+            ORDER BY updated_at DESC LIMIT 1`,
+          "DROP TABLE oauth_credentials_v2",
+          {
+            sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (3, ?)",
+            args: [new Date().toISOString()],
+          },
+        ],
+        "write",
+      );
+    } finally {
+      await client.execute("PRAGMA foreign_keys = ON");
+    }
   }
 }

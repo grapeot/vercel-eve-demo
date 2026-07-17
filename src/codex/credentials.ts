@@ -11,6 +11,7 @@ import { CodexOAuthClient, extractAccountId, type CodexTokenResponse } from "./o
 
 const REFRESH_MARGIN_MS = 60_000;
 const REFRESH_LEASE_MS = 15_000;
+export const OWNER_CREDENTIAL_ID = "owner";
 
 export interface ResolvedCodexCredential {
   accessToken: string;
@@ -18,8 +19,8 @@ export interface ResolvedCodexCredential {
   expiresAt: string;
 }
 
-const accessContext = (sessionId: string) => `codex:${sessionId}:access`;
-const refreshContext = (sessionId: string) => `codex:${sessionId}:refresh`;
+const accessContext = (ownerId: string) => `codex:${ownerId}:access`;
+const refreshContext = (ownerId: string) => `codex:${ownerId}:refresh`;
 
 export class CodexCredentialService {
   private readonly repository: OAuthCredentialRepository;
@@ -33,21 +34,19 @@ export class CodexCredentialService {
     this.repository = new OAuthCredentialRepository(client);
   }
 
-  async storeTokens(
-    accessSessionId: string,
-    tokens: CodexTokenResponse,
-  ): Promise<void> {
+  async storeTokens(tokens: CodexTokenResponse): Promise<void> {
     const accountId = extractAccountId(tokens);
     if (!accountId) throw new Error("Codex token did not include an account identifier");
     await this.repository.upsert({
-      accessSessionId,
+      ownerId: OWNER_CREDENTIAL_ID,
+      legacyAccessSessionId: null,
       encryptedAccessToken: this.cipher.encrypt(
         tokens.access_token,
-        accessContext(accessSessionId),
+        accessContext(OWNER_CREDENTIAL_ID),
       ),
       encryptedRefreshToken: this.cipher.encrypt(
         tokens.refresh_token,
-        refreshContext(accessSessionId),
+        refreshContext(OWNER_CREDENTIAL_ID),
       ),
       expiresAt: new Date(
         this.now() + (tokens.expires_in ?? 3600) * 1000,
@@ -57,8 +56,27 @@ export class CodexCredentialService {
     });
   }
 
-  async resolve(accessSessionId: string): Promise<ResolvedCodexCredential> {
-    let stored = await this.requireActive(accessSessionId);
+  async resolve(): Promise<ResolvedCodexCredential> {
+    let stored = await this.requireActive();
+    if (stored.legacyAccessSessionId) {
+      const legacyId = stored.legacyAccessSessionId;
+      const accessToken = this.cipher.decrypt(
+        stored.encryptedAccessToken,
+        accessContext(legacyId),
+      );
+      const refreshToken = stored.encryptedRefreshToken
+        ? this.cipher.decrypt(stored.encryptedRefreshToken, refreshContext(legacyId))
+        : null;
+      await this.repository.rewrapLegacyIfVersion(
+        OWNER_CREDENTIAL_ID,
+        stored.version,
+        this.cipher.encrypt(accessToken, accessContext(OWNER_CREDENTIAL_ID)),
+        refreshToken
+          ? this.cipher.encrypt(refreshToken, refreshContext(OWNER_CREDENTIAL_ID))
+          : null,
+      );
+      stored = await this.requireActive();
+    }
     if (Date.parse(stored.expiresAt) <= this.now() + REFRESH_MARGIN_MS) {
       stored = await this.refreshWithLease(stored);
     }
@@ -66,15 +84,15 @@ export class CodexCredentialService {
     return {
       accessToken: this.cipher.decrypt(
         stored.encryptedAccessToken,
-        accessContext(accessSessionId),
+        accessContext(OWNER_CREDENTIAL_ID),
       ),
       accountId: stored.accountId,
       expiresAt: stored.expiresAt,
     };
   }
 
-  private async requireActive(accessSessionId: string): Promise<StoredCredential> {
-    const stored = await this.repository.findBySession(accessSessionId);
+  private async requireActive(): Promise<StoredCredential> {
+    const stored = await this.repository.findByOwner(OWNER_CREDENTIAL_ID);
     if (!stored || stored.status !== "active") {
       throw new Error("Codex authorization is unavailable");
     }
@@ -82,10 +100,10 @@ export class CodexCredentialService {
   }
 
   private async refreshWithLease(stored: StoredCredential): Promise<StoredCredential> {
-    const accessSessionId = stored.accessSessionId;
+    const ownerId = stored.ownerId;
     const now = new Date(this.now()).toISOString();
     const acquired = await this.repository.acquireRefreshLease({
-      accessSessionId,
+      ownerId,
       expectedVersion: stored.version,
       now,
       leaseUntil: new Date(this.now() + REFRESH_LEASE_MS).toISOString(),
@@ -93,7 +111,7 @@ export class CodexCredentialService {
     if (!acquired) {
       for (let attempt = 0; attempt < 20; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 250));
-        const updated = await this.requireActive(accessSessionId);
+        const updated = await this.requireActive();
         if (updated.version > stored.version) return updated;
       }
       throw new Error("Codex credential refresh is already in progress");
@@ -105,30 +123,30 @@ export class CodexCredentialService {
       }
       const refreshToken = this.cipher.decrypt(
         stored.encryptedRefreshToken,
-        refreshContext(accessSessionId),
+        refreshContext(ownerId),
       );
       const tokens = await this.oauth.refresh(refreshToken);
       const rotated = await this.repository.rotateIfVersion(
-        accessSessionId,
+        ownerId,
         stored.version,
         {
           encryptedAccessToken: this.cipher.encrypt(
             tokens.access_token,
-            accessContext(accessSessionId),
+            accessContext(ownerId),
           ),
           encryptedRefreshToken: this.cipher.encrypt(
             tokens.refresh_token,
-            refreshContext(accessSessionId),
+            refreshContext(ownerId),
           ),
           expiresAt: new Date(
             this.now() + (tokens.expires_in ?? 3600) * 1000,
           ).toISOString(),
         },
       );
-      if (!rotated) return this.requireActive(accessSessionId);
-      return this.requireActive(accessSessionId);
+      if (!rotated) return this.requireActive();
+      return this.requireActive();
     } catch (error) {
-      await this.repository.releaseRefreshLease(accessSessionId, stored.version);
+      await this.repository.releaseRefreshLease(ownerId, stored.version);
       throw error;
     }
   }

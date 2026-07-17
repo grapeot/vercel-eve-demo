@@ -24,7 +24,7 @@ describe("Turso storage", () => {
     const result = await client.execute(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(result.rows.map((row) => Number(row.version))).toEqual([1, SCHEMA_VERSION]);
+    expect(result.rows.map((row) => Number(row.version))).toEqual([1, 2, SCHEMA_VERSION]);
   });
 
   it("creates, validates, hashes metadata, and revokes access sessions", async () => {
@@ -55,7 +55,8 @@ describe("Turso storage", () => {
     });
     const credentials = new OAuthCredentialRepository(client);
     const first = await credentials.upsert({
-      accessSessionId: "access-1",
+      ownerId: "owner",
+      legacyAccessSessionId: null,
       encryptedAccessToken: "encrypted-access-1",
       encryptedRefreshToken: "encrypted-refresh-1",
       expiresAt: "2026-07-16T13:00:00.000Z",
@@ -65,20 +66,20 @@ describe("Turso storage", () => {
 
     expect(first.version).toBe(1);
     expect(
-      await credentials.rotateIfVersion("access-1", 1, {
+      await credentials.rotateIfVersion("owner", 1, {
         encryptedAccessToken: "encrypted-access-2",
         encryptedRefreshToken: "encrypted-refresh-2",
         expiresAt: "2026-07-16T14:00:00.000Z",
       }),
     ).toBe(true);
     expect(
-      await credentials.rotateIfVersion("access-1", 1, {
+      await credentials.rotateIfVersion("owner", 1, {
         encryptedAccessToken: "stale-write",
         encryptedRefreshToken: null,
         expiresAt: "2026-07-16T15:00:00.000Z",
       }),
     ).toBe(false);
-    expect((await credentials.findBySession("access-1"))?.version).toBe(2);
+    expect((await credentials.findByOwner("owner"))?.version).toBe(2);
   });
 
   it("rate-limits device polling with an atomic next-poll claim", async () => {
