@@ -468,6 +468,15 @@ export class ResearchRepository {
     });
   }
 
+  async failUnattachedRun(runId: string): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: `UPDATE runs SET status = 'failed', updated_at = ?
+        WHERE id = ? AND status = 'queued' AND eve_session_id IS NULL`,
+      args: [nowIso(), runId],
+    });
+    return result.rowsAffected === 1;
+  }
+
   async appendEvent(input: {
     id?: string;
     runId: string;

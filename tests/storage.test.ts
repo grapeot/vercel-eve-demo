@@ -209,4 +209,37 @@ describe("Turso storage", () => {
       content: "# First",
     });
   });
+
+  it("fails only queued runs that never attached to an Eve session", async () => {
+    const sessions = new AccessSessionRepository(client);
+    await sessions.create({
+      id: "access-1",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-1",
+      question: "Will startup fail safely?",
+    });
+    const failedRunId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-failed",
+      skillBundleVersion: "bundle-v1",
+    });
+
+    expect(await research.failUnattachedRun(failedRunId)).toBe(true);
+    expect(await research.failUnattachedRun(failedRunId)).toBe(false);
+
+    const attachedRunId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-attached",
+      skillBundleVersion: "bundle-v1",
+    });
+    await research.attachSession({
+      runId: attachedRunId,
+      accessSessionId: "access-1",
+      eveSessionId: "eve-session-attached",
+    });
+    expect(await research.failUnattachedRun(attachedRunId)).toBe(false);
+  });
 });

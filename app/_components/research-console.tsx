@@ -361,16 +361,27 @@ function Workbench({
     setArtifacts([]);
     setSelectedArtifactId(null);
     await refreshRuns();
-    await agent.send({
-      message: [
-        `研究问题：${question.trim()}`,
-        `背景与使用场景：${context.trim() || "无额外背景"}`,
-        `目标读者：${audience}`,
-        `期望篇幅：${length}`,
-        "请按 deep-research 与 external-writing skills 完成可审计调研。",
-        "必须产出 report.md，并用 publish_artifacts checkpoint 最终报告与核心中间工件。",
-      ].join("\n"),
-    });
+    try {
+      await agent.send({
+        message: [
+          `研究问题：${question.trim()}`,
+          `背景与使用场景：${context.trim() || "无额外背景"}`,
+          `目标读者：${audience}`,
+          `期望篇幅：${length}`,
+          "请按 deep-research 与 external-writing skills 完成可审计调研。",
+          "必须产出 report.md，并用 publish_artifacts checkpoint 最终报告与核心中间工件。",
+        ].join("\n"),
+      });
+    } catch (sendError) {
+      await fetch(`/api/runs/${payload.runId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "failed" }),
+      });
+      setRunStatus("failed");
+      await refreshRuns();
+      setError(sendError instanceof Error ? sendError.message : "无法启动 research run。");
+    }
   }
 
   async function archiveCurrentRun() {
