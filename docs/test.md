@@ -20,7 +20,7 @@
 
 ## eve Session Smoke
 
-`npm run test:eve` 启动 `eve dev --no-ui`，等待 health，创建 mock session，读取 NDJSON stream，看到 `session.waiting` 后退出。它验证真实 eve compiler、authored root event hook、session route、mock model、tool call 和 stream，不调用模型或 Tavily。测试结束按 `sessionId` label stop/remove 自己创建的 Microsandbox VM，避免 smoke 子进程退出后留下 detached runtime。
+`npm run test:eve` 创建临时 libSQL 和 queued product run，启动 `eve dev --no-ui`，创建 mock session并读取 NDJSON stream。看到 `session.waiting` 后，它断言 authored root hook 已绑定 Eve session、将 run 推进到 `waiting` 并持久化非空 timeline。它验证真实 eve compiler、hook runtime、session route、mock model、tool call 和 stream，不调用模型或 Tavily。测试结束按 `sessionId` label stop/remove 自己创建的 Microsandbox VM，避免 smoke 子进程退出后留下 detached runtime。
 
 ## Build
 

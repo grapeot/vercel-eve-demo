@@ -343,4 +343,45 @@ describe("Turso storage", () => {
       }),
     ]);
   });
+
+  it("recovers a missed session mapping from the first later root event", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-hook-recovery",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-hook-recovery",
+      question: "Can a later event recover the mapping?",
+    });
+    const runId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-hook-recovery",
+      skillBundleVersion: "bundle-v1",
+    });
+
+    expect(
+      await persistRootEveEvent({
+        repository: research,
+        session: {
+          id: "eve-hook-recovery-session",
+          auth: {
+            initiator: { principalId: "access-hook-recovery" },
+            current: { principalId: "access-hook-recovery" },
+          },
+        },
+        event: {
+          type: "turn.started",
+          data: { sequence: 1, turnId: "turn-recovery" },
+        },
+      }),
+    ).toBe(true);
+    expect(await research.findRunByEveSession("eve-hook-recovery-session")).toMatchObject({
+      id: runId,
+      status: "running",
+    });
+    expect(await research.listEvents(runId)).toEqual([
+      expect.objectContaining({ type: "turn.started" }),
+    ]);
+  });
 });

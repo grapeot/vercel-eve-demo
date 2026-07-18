@@ -52,28 +52,35 @@ export async function persistRootEveEvent(input: {
       current: { principalId: string } | null;
     };
     parent?: { sessionId: string };
+    turn?: unknown;
   };
 }): Promise<boolean> {
   if (input.session.parent) return false;
   const event = record(input.event);
   const eventType = typeof event.type === "string" ? event.type : "";
   const meta = record(event.meta);
-  const sourceCreatedAt = typeof meta.at === "string" ? meta.at : "";
-  if (!eventType || !sourceCreatedAt) return false;
+  const sourceCreatedAt =
+    typeof meta.at === "string"
+      ? meta.at
+      : `unstamped:${createHash("sha256")
+          .update(canonicalJson({ event: input.event, turn: input.session.turn }))
+          .digest("base64url")}`;
+  if (!eventType) return false;
 
   const initiator = input.session.auth.initiator;
   const current = input.session.auth.current;
   if (!initiator || !current || initiator.principalId !== current.principalId) {
     return false;
   }
-  if (eventType === "session.started") {
+  let run = await input.repository.findRunByEveSession(input.session.id);
+  if (!run) {
     await input.repository.attachQueuedSession({
       accessSessionId: initiator.principalId,
       eveSessionId: input.session.id,
     });
+    run = await input.repository.findRunByEveSession(input.session.id);
   }
 
-  const run = await input.repository.findRunByEveSession(input.session.id);
   const projected = projectEveEvent(input.event);
   if (!run || !projected) return false;
   return input.repository.appendProjectedEvent({

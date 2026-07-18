@@ -5,12 +5,33 @@ import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { Sandbox } from "microsandbox";
 
+import { createDatabaseClient } from "../src/storage/client.ts";
+import { AccessSessionRepository, ResearchRepository } from "../src/storage/repositories.ts";
+import { migrateDatabase } from "../src/storage/schema.ts";
+
 const port = 4317;
 const origin = `http://127.0.0.1:${port}`;
 const logs = [];
 let sessionId;
 const tempDirectory = await mkdtemp(join(tmpdir(), "eve-smoke-"));
 const eveAppDirectory = join(tempDirectory, "eve-app");
+const databaseUrl = `file:${join(tempDirectory, "smoke.db")}`;
+const database = createDatabaseClient({ url: databaseUrl });
+await migrateDatabase(database);
+await new AccessSessionRepository(database).create({
+  id: "offline-mock-owner",
+  expiresAt: "2030-01-01T00:00:00.000Z",
+});
+const research = new ResearchRepository(database);
+const requestId = await research.createRequest({
+  accessSessionId: "offline-mock-owner",
+  question: "Verify server-side event durability",
+});
+const runId = await research.createRun({
+  requestId,
+  workspaceId: "eve-smoke-workspace",
+  skillBundleVersion: "smoke-bundle",
+});
 await mkdir(eveAppDirectory);
 for (const path of ["agent", "src", "package.json", "tsconfig.json"]) {
   await cp(path, join(eveAppDirectory, path), { recursive: true });
@@ -24,6 +45,7 @@ const child = spawn("./node_modules/.bin/eve", ["dev", "--no-ui", "--port", Stri
     EVE_DEMO_MODE: "mock",
     SEARCH_BACKEND: "mock",
     ALLOW_LIVE_API: "0",
+    TURSO_DATABASE_URL: databaseUrl,
   },
   stdio: ["ignore", "pipe", "pipe"],
 });
@@ -89,6 +111,12 @@ async function run() {
 
   if (!sawWaiting) throw new Error("stream 未到达 session.waiting");
   if (!sawSearchTool) throw new Error("mock session 未调用 web_search override");
+
+  const persistedRun = await research.findRunByEveSession(session.sessionId);
+  const persistedEvents = await research.listEvents(runId);
+  if (persistedRun?.status !== "waiting" || persistedEvents.length === 0) {
+    throw new Error("root hook 未持久化 session mapping、run status 或 timeline events");
+  }
   console.log(`Eve smoke passed: ${session.sessionId}`);
 }
 
@@ -120,5 +148,6 @@ try {
       process.exitCode = 1;
     }
   }
+  database.close();
   await rm(tempDirectory, { recursive: true, force: true });
 }
