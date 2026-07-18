@@ -71,6 +71,26 @@ interface DeviceAttempt {
   intervalSeconds: number;
 }
 
+function workspaceFilesFrom(events: TimelineEvent[]) {
+  const files = new Map<string, number>();
+  for (const event of events) {
+    if (event.type !== "file.written") continue;
+    const actions = Array.isArray(event.payload.actions) ? event.payload.actions : [];
+    for (const value of actions) {
+      if (typeof value !== "object" || value === null) continue;
+      const input = (value as { input?: unknown }).input;
+      if (typeof input !== "object" || input === null) continue;
+      const filePath = (input as { filePath?: unknown }).filePath;
+      if (typeof filePath !== "string") continue;
+      const path = filePath.startsWith("/workspace/")
+        ? filePath.slice("/workspace/".length)
+        : filePath;
+      files.set(path, event.sequence);
+    }
+  }
+  return [...files].map(([path, sequence]) => ({ path, sequence }));
+}
+
 const decisionQuestions = [
   {
     question: "Agent filesystem 什么时候应该是 source of truth，什么时候只应是 projection？",
@@ -212,7 +232,22 @@ function Workbench({
     const payload = await response.json();
     setTimeline(payload.events as TimelineEvent[]);
     setArtifacts(payload.artifacts as ArtifactSummary[]);
-    setRunStatus(String(payload.run.status));
+    const status = String(payload.run.status);
+    setRunStatus(status);
+    setRuns((current) =>
+      current.map((run) =>
+        run.id === targetRunId
+          ? {
+              ...run,
+              status,
+              eve_session_id:
+                typeof payload.run.eve_session_id === "string"
+                  ? payload.run.eve_session_id
+                  : null,
+            }
+          : run,
+      ),
+    );
     const report = (payload.artifacts as ArtifactSummary[]).find(
       (artifact) => artifact.path === "report.md",
     );
@@ -393,6 +428,8 @@ function Workbench({
   }
 
   const report = artifacts.find((artifact) => artifact.path === "report.md");
+  const workspaceFiles = workspaceFilesFrom(timeline);
+  const checkpointedPaths = new Set(artifacts.map((artifact) => artifact.path));
   const canContinue = Boolean(
     runId && report && currentSessionId && runs.find((run) => run.id === runId)?.eve_session_id === currentSessionId,
   );
@@ -445,8 +482,11 @@ function Workbench({
         </section>
 
         <aside className="artifact-column">
-          <div className="column-title"><span>03</span><h2>Artifacts</h2>{report ? <a href={`/api/runs/${runId}/artifacts/${report.id}?download=1`}>Download report</a> : null}</div>
-          <nav className="file-tree">{artifacts.length === 0 ? <p>No checkpointed files yet.</p> : artifacts.map((artifact) => <button key={artifact.id} className={artifact.id === selectedArtifactId ? "active" : ""} onClick={() => setSelectedArtifactId(artifact.id)}><span>{artifact.path === "report.md" ? "◆" : "◇"}</span><b>{artifact.path}</b><small>{Math.ceil(artifact.sizeBytes / 1024)} KB</small></button>)}</nav>
+          <div className="column-title"><span>03</span><h2>Workspace</h2>{report ? <a href={`/api/runs/${runId}/artifacts/${report.id}?download=1`}>Download report</a> : null}</div>
+          <div className="artifact-section-title"><span>WORKSPACE FILES</span><small>Observed from Eve file writes</small></div>
+          <div className="workspace-files">{workspaceFiles.length === 0 ? <p>No workspace files observed yet.</p> : workspaceFiles.map((file) => <div key={file.path}><span>◇</span><b>{file.path}</b><small>{checkpointedPaths.has(file.path) ? "checkpointed" : `workspace only · event ${file.sequence}`}</small></div>)}</div>
+          <div className="artifact-section-title"><span>CHECKPOINTED ARTIFACTS</span><small>Durable in Turso</small></div>
+          <nav className="file-tree">{artifacts.length === 0 ? <p>No checkpointed artifacts yet.</p> : artifacts.map((artifact) => <button key={artifact.id} className={artifact.id === selectedArtifactId ? "active" : ""} onClick={() => setSelectedArtifactId(artifact.id)}><span>{artifact.path === "report.md" ? "◆" : "◇"}</span><b>{artifact.path}</b><small>{Math.ceil(artifact.sizeBytes / 1024)} KB</small></button>)}</nav>
           <div className="artifact-viewer">
             <div className="viewer-toolbar"><div><button className={view === "preview" ? "active" : ""} onClick={() => setView("preview")}>Preview</button><button className={view === "source" ? "active" : ""} onClick={() => setView("source")}>Source</button></div>{selectedArtifact ? <a href={`/api/runs/${runId}/artifacts/${selectedArtifact.id}?download=1`}>Download</a> : null}</div>
             {!selectedArtifact ? <div className="viewer-empty">Select an artifact to inspect it.</div> : view === "source" ? <pre className="markdown-source">{deferredContent}</pre> : <article className="markdown-preview" onMouseUp={() => { const text = window.getSelection()?.toString().trim(); if (text) setSelectedText(text.slice(0, 4000)); }}><ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={{ a: ({ children, href }) => <a href={href} target="_blank" rel="noreferrer">{children}</a>, img: ({ alt, src }) => <a href={typeof src === "string" ? src : "#"} target="_blank" rel="noreferrer">[Image: {alt || "source"}]</a> }}>{deferredContent}</ReactMarkdown></article>}
