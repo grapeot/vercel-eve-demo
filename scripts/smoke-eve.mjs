@@ -3,10 +3,12 @@ import { cp, mkdir, mkdtemp, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { Sandbox } from "microsandbox";
 
 const port = 4317;
 const origin = `http://127.0.0.1:${port}`;
 const logs = [];
+let sessionId;
 const tempDirectory = await mkdtemp(join(tmpdir(), "eve-smoke-"));
 const eveAppDirectory = join(tempDirectory, "eve-app");
 await mkdir(eveAppDirectory);
@@ -58,6 +60,7 @@ async function run() {
   if (!session.sessionId || !session.continuationToken) {
     throw new Error("session response 缺少 ID 或 continuation token");
   }
+  sessionId = session.sessionId;
 
   const controller = new AbortController();
   const streamResponse = await fetch(
@@ -98,6 +101,24 @@ try {
 } finally {
   child.kill("SIGTERM");
   await Promise.race([new Promise((resolve) => child.once("exit", resolve)), delay(2_000)]);
-  if (child.exitCode === null) child.kill("SIGKILL");
+  if (child.exitCode === null) {
+    child.kill("SIGKILL");
+    await new Promise((resolve) => child.once("exit", resolve));
+  }
+
+  if (sessionId) {
+    try {
+      const sandboxes = await Sandbox.listWith({ labels: { sessionId } });
+      for (const sandbox of sandboxes) {
+        if (sandbox.status === "running" || sandbox.status === "draining") {
+          await sandbox.stopWithTimeout(2_000);
+        }
+        await Sandbox.remove(sandbox.name);
+      }
+    } catch (error) {
+      console.error(`清理 Eve smoke sandbox 失败：${error}`);
+      process.exitCode = 1;
+    }
+  }
   await rm(tempDirectory, { recursive: true, force: true });
 }

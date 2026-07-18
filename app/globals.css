@@ -167,14 +167,14 @@ a { color: inherit; }
 .file-tree button > span { grid-row: 1 / 3; color: var(--green); }
 .file-tree b { overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
 .file-tree small { color: var(--muted); font: 8px monospace; }
-.artifact-viewer { min-height: 480px; flex: 1; border: 1px solid var(--ink); background: #fffdf8; }
+.artifact-viewer { min-height: 480px; flex: 1; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--ink); background: #fffdf8; }
 .viewer-toolbar { height: 40px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 0 10px; }
 .viewer-toolbar button { border: 0; padding: 5px 8px; color: var(--muted); background: transparent; font: 10px monospace; }
 .viewer-toolbar button.active { color: white; background: var(--green); }
 .viewer-toolbar a { color: var(--rust); font-size: 10px; }
-.viewer-empty { min-height: 420px; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
-.markdown-source { height: 520px; margin: 0; overflow: auto; padding: 18px; white-space: pre-wrap; color: #dce6df; background: #17211e; font: 11px/1.6 "SFMono-Regular", Consolas, monospace; }
-.markdown-preview { height: 520px; overflow: auto; padding: clamp(20px, 4vw, 44px); font-family: Georgia, "Noto Serif SC", serif; line-height: 1.78; }
+.viewer-empty { min-height: 0; flex: 1; display: grid; place-items: center; color: var(--muted); font-size: 12px; }
+.markdown-source { min-height: 0; flex: 1; margin: 0; overflow: auto; padding: 18px; white-space: pre-wrap; color: #dce6df; background: #17211e; font: 11px/1.6 "SFMono-Regular", Consolas, monospace; }
+.markdown-preview { min-height: 0; flex: 1; overflow: auto; padding: clamp(20px, 4vw, 44px); font-family: Georgia, "Noto Serif SC", serif; line-height: 1.78; }
 .markdown-preview h1 { margin: 0 0 28px; font-size: clamp(30px, 4vw, 48px); line-height: 1.05; letter-spacing: -.03em; }
 .markdown-preview h2 { margin: 36px 0 12px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 22px; }
 .markdown-preview h3 { margin-top: 28px; font-size: 17px; }
@@ -219,5 +219,5 @@ a { color: inherit; }
   .brief-column, .timeline-column, .artifact-column { padding: 22px 16px; border: 0; border-bottom: 1px solid var(--ink); }
   .two-fields { grid-template-columns: 1fr; }
   .timeline { max-height: 460px; }
-  .artifact-viewer, .markdown-preview, .markdown-source { min-height: 400px; height: 58vh; }
+  .artifact-viewer { min-height: 400px; height: 58vh; }
 }

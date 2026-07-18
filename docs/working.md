@@ -5,6 +5,8 @@
 ### 2026-07-17
 
 - 将 normalized timeline durability 从浏览器 React effect 移入 Eve authored hook：root stream event 在 durable accept 后完成 session mapping、脱敏投影、稳定 fingerprint、幂等 Turso 写入、run heartbeat 和 terminal-absorbing 状态迁移；浏览器现在只轮询 timeline，不再上传 `agent.events`。
+- 修复 Artifact Preview 高度脱离容器的问题：viewer 改为 column flex，Preview、Source 和 empty state 填满 toolbar 之外的剩余空间；移动端只约束 viewer 外层，避免父子同时使用 `58vh`。
+- 定位本地卡死 run 的故障边界并修复 smoke sandbox 泄漏：两个互不相关的 Microsandbox `0.5.10` VM（其中一个只执行 mock smoke）都出现 host `msb` vCPU 约 105%、guest metrics 完全静止、采样停在 Hypervisor `hv_trap` 的相同模式；`test:eve` 现在按 Eve `sessionId` label 精确 stop/remove 自己创建的 VM，并在强制终止 Eve 后等待进程真正退出。
 - 将 Codex credential 从 8 小时 challenge access session 提升为稳定 owner identity：schema v3 保留最新 active credential，首次 resolve 将旧 session AAD 密文 rewrap 为 owner AAD；OAuth attempt 仍绑定短期 session。服务重启、cookie 到期或重新 challenge 不再触发重复 Codex OAuth。
 - 修复本地 live run 在 Docker daemon 不存在时重试失败并永久停在 `queued`：local Eve 改用无需 Docker daemon 的 microsandbox；若 session 建立前 `agent.send` 失败，则以条件更新将 unattached queued run 标记 `failed`，释放 single-active-run guard。
 - QUESTION STARTERS 改为完整 decision question presets；新增“今天美国股市为什么大跌？”，自动填入美国股市 context、基础从业者 audience 和 1000-2000 字篇幅。
@@ -74,5 +76,7 @@
 - `withEve()` 在本地和 Vercel 都会维护独立 eve service；不能只验证 Next build。
 - `placeholderAuth()` 在 Vercel Production 中主动拒绝请求，这是公开 Demo 的安全默认值。
 - stream 到 `session.waiting` 后仍保持连接，smoke test 必须主动终止读取，不能把 timeout 当作 turn 失败。
+- Microsandbox freeze 不能归因于研究 prompt 或 guest command：独立 mock smoke VM 只执行一次简单命令后也复现；冻结时 guest CPU、disk、memory 和 network counter 不再变化，host vCPU 线程停在 `hv_trap`，runtime relay 不再活动，`kernel.log` 没有 panic。证据将边界收窄到本地 Microsandbox runtime/Hypervisor 层，但不足以证明具体 Hypervisor 或 macOS 根因。
+- Microsandbox `0.6.0`/`0.6.1` 包含 runtime wait 和 stale sandbox cleanup 相关改动，但当前 Eve `0.24.4` 只声明 `microsandbox ^0.5.0`，也没有上游证据证明 0.6.x 直接修复本次 `hv_trap` freeze。不要在主路径盲目跨 major；先在独立兼容性分支重跑 Eve build、smoke、长时间 idle 和 stop/restart soak test。
 - Next `16.2.6` 当前传递依赖 `postcss <8.5.10`，`npm audit --omit=dev` 报告 `GHSA-qx2v-qp2m-jg93`（moderate）。npm 给出的 `--force` 修复会降级到不兼容的 Next `9.3.3`，因此不采用；等待 Next 发布非破坏性修复后再升级并重跑完整验证。
 - microsandbox `0.5.10` 的 network transform 实测没有覆盖 Tavily SDK 已存在的 Authorization header，Tavily 返回 401。旧版本曾使用 Vercel Sandbox broker / local Docker env；当前实现已删除这条 credential transport，改由可信 app runtime 直接调用 Tavily REST。不要重新把 Tavily key 注入 Sandbox。
