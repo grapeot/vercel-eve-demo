@@ -2,7 +2,7 @@
   "name": "vercel-eve-demo",
   "version": "0.1.0",
   "private": true,
-  "description": "Owner-only Eve personal research workbench with inspectable Markdown artifacts",
+  "description": "Reference implementation for an owner-only Eve research workbench with inspectable Markdown artifacts",
   "license": "MIT",
   "type": "module",
   "engines": {

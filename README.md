@@ -4,6 +4,16 @@
 
 默认模式不调用模型或 Tavily。live 模式必须同时通过显式开关和 owner OAuth，避免仅因环境中存在 credential 就触发付费调用。
 
+> [!WARNING]
+> 这是个人实验性质的 reference implementation，不是 production service、multi-user SaaS 或可安全一键部署的模板。Codex compatibility path 使用 OpenAI 未承诺为第三方 hosted Web app 提供的 public client identity 与 Responses transport；本项目不代表 OpenAI、OpenCode 或 Vercel，也未获得其认可。该路径可能无预告失效，并可能带来账号、条款与数据处理风险。它默认关闭，只应由理解这些边界的单个 owner 在短期受控环境中显式启用；不要把它扩展给第二个用户或作为商业认证方案。
+
+## Reference Implementation Status
+
+- 目标是展示 Eve harness、typed runtime capabilities、durable event projection、artifact checkpoint 和 owner-only experimental Codex adapter 如何组合，不提供 SLA、兼容性或生产安全保证。
+- `CODEX_EXPERIMENT_ENABLED=0` 是默认值。Fork 必须主动 opt in，且不能在 Codex transport 失效时绕过限制或回退到项目方 credential。
+- 公开源码不意味着 private Codex endpoint 或 public client identity 构成稳定、受支持的第三方 OAuth contract。正式产品应替换为 OpenAI 官方提供的 API 或 OAuth contract。
+- 当前实现及已知限制按原样提供。部署者负责核对上游服务条款、数据保留、账号风险、费用和所在地区的合规要求。
+
 ## 产品边界
 
 ```text
@@ -19,7 +29,7 @@ Owner browser
 
 Workbench 提供三栏界面：历史 run 与约束、normalized Eve timeline、Markdown source/sanitized preview。每个 run 绑定唯一 Eve root session；event projector 丢弃 reasoning、脱敏 credential 字段，并只保存搜索来源和 extract 长度等审计信息。成功工作流必须在 Sandbox 写入 `report.md`，再由 `publish_artifacts` checkpoint 到 Turso。
 
-这不是多用户 SaaS。临时 Vercel evaluation 也必须使用 WAF IP allowlist、challenge gate、Codex experiment kill switch，并在验证后删除 deployment。
+这不是多用户 SaaS，也不应被包装成 reusable production template。临时 Vercel evaluation 必须使用 WAF IP allowlist、challenge gate、Codex experiment kill switch，并按 teardown runbook 清除外部资源与持久化数据；只删除单个 deployment 不等于完成数据销毁。
 
 ## 环境要求
 

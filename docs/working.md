@@ -4,6 +4,7 @@
 
 ### 2026-07-17
 
+- 将公开定位明确为个人实验 reference implementation：README 首屏披露非官方 Codex hosted transport、单 owner、默认关闭、无生产/SLA/多用户保证及账号与条款风险；正式产品必须替换为 OpenAI 官方 contract，删除单个 deployment 不等于完整 teardown。
 - 将 normalized timeline durability 从浏览器 React effect 移入 Eve authored hook：root stream event 在 durable accept 后完成 session mapping、脱敏投影、稳定 fingerprint、幂等 Turso 写入、run heartbeat 和 terminal-absorbing 状态迁移；浏览器现在只轮询 timeline，不再上传 `agent.events`。
 - 修复 Artifact Preview 高度脱离容器的问题：viewer 改为 column flex，Preview、Source 和 empty state 填满 toolbar 之外的剩余空间；移动端只约束 viewer 外层，避免父子同时使用 `58vh`。
 - 定位本地卡死 run 的故障边界并修复 smoke sandbox 泄漏：两个互不相关的 Microsandbox `0.5.10` VM（其中一个只执行 mock smoke）都出现 host `msb` vCPU 约 105%、guest metrics 完全静止、采样停在 Hypervisor `hv_trap` 的相同模式；`test:eve` 现在按 Eve `sessionId` label 精确 stop/remove 自己创建的 VM，并在强制终止 Eve 后等待进程真正退出。
