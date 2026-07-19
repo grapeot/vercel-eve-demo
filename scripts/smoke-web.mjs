@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { createClient } from "@libsql/client";
 
 const port = 4318;
 const origin = `http://127.0.0.1:${port}`;
@@ -184,33 +185,50 @@ async function run() {
     body: JSON.stringify({ eveSessionId: sessionId }),
   });
   if (!attachResponse.ok) throw new Error("product run 无法绑定 Eve session");
-  const eventResponse = await fetch(`${origin}/api/runs/${run.runId}/events`, {
+  const eventWriteResponse = await fetch(`${origin}/api/runs/${run.runId}/events`, {
     method: "POST",
     headers: { Cookie: cookie, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      sourceSessionId: sessionId,
-      startIndex: 0,
-      events: [
-        { type: "session.started", data: { sequence: 0 } },
-        {
-          type: "actions.requested",
-          data: {
-            sequence: 1,
-            actions: [
-              {
-                kind: "tool-call",
-                callId: "call-1",
-                toolName: "web_search",
-                input: { query: "test", authorization: "must-not-persist" },
-              },
-            ],
-          },
-        },
-        { type: "session.waiting", data: { sequence: 2, continuationToken: "secret" } },
-      ],
-    }),
+    body: JSON.stringify({ events: [] }),
   });
-  if (!eventResponse.ok) throw new Error("Eve event projection 写入失败");
+  if (eventWriteResponse.status !== 405) {
+    throw new Error("browser event POST 未被禁用");
+  }
+
+  const smokeDatabase = createClient({ url: serverEnv.TURSO_DATABASE_URL });
+  try {
+    const now = new Date().toISOString();
+    await smokeDatabase.batch(
+      [
+        ["session.started", "Research session started", {}],
+        [
+          "tool.requested",
+          "Requested web_search",
+          { toolName: "web_search", input: "[REDACTED]" },
+        ],
+        ["session.waiting", "Research session waiting", {}],
+      ].map(([type, summary, payload], sequence) => ({
+        sql: `INSERT INTO run_events
+          (id, run_id, sequence, source_session_id, source_event_key,
+           source_created_at, type, summary, payload_json, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [
+          `smoke-event-${sequence}`,
+          run.runId,
+          sequence,
+          sessionId,
+          `smoke-source-${sequence}`,
+          now,
+          type,
+          summary,
+          JSON.stringify(payload),
+          now,
+        ],
+      })),
+      "write",
+    );
+  } finally {
+    smokeDatabase.close();
+  }
   const productRun = await (
     await fetch(`${origin}/api/runs/${run.runId}`, { headers: { Cookie: cookie } })
   ).json();
@@ -219,7 +237,7 @@ async function run() {
     throw new Error("product event projection 缺少 timeline 或 redaction");
   }
   if (productJson.includes("must-not-persist") || productJson.includes('"secret"')) {
-    throw new Error("product event projection 泄漏 secret");
+    throw new Error("product timeline 泄漏 secret");
   }
   const deleteRunResponse = await fetch(`${origin}/api/runs/${run.runId}`, {
     method: "DELETE",
