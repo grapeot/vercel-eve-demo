@@ -3,6 +3,7 @@ import { mockModel } from "eve/evals";
 
 import { resolveRuntimeConfig } from "../src/config";
 import { resolveCodexModel } from "../src/codex/model";
+import { authorizeRuntimeCapability } from "../src/security/runtime_authorization";
 
 const config = resolveRuntimeConfig();
 
@@ -58,16 +59,8 @@ export default defineAgent(
           fallback: unavailableCodexModel,
           events: {
             "step.started": async (_event, context) => {
-              const initiator = context.session.auth.initiator;
-              const current = context.session.auth.current;
-              if (
-                !initiator ||
-                !current ||
-                initiator.principalId !== current.principalId
-              ) {
-                return unavailableCodexModel;
-              }
               try {
+                await authorizeRuntimeCapability(context);
                 return await resolveCodexModel();
               } catch {
                 return unavailableCodexModel;

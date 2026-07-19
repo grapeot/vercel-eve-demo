@@ -1,5 +1,6 @@
 import type { RuntimeConfig } from "../config";
-import { ResearchRepository, UsageRepository } from "../storage/repositories";
+import { authorizeRuntimeCapability } from "../security/runtime_authorization";
+import { UsageRepository } from "../storage/repositories";
 import { getDatabaseClient } from "../storage/server";
 import { tavilyReservationMicros, usdToMicros } from "./usage";
 
@@ -7,6 +8,10 @@ interface ToolSessionContext {
   session: {
     id: string;
     parent?: { rootSessionId?: string };
+    auth: {
+      initiator?: { principalId?: string } | null;
+      current?: { principalId?: string } | null;
+    };
   };
 }
 
@@ -18,13 +23,8 @@ export async function reserveResearchOperation(
   if (config.searchBackend === "mock") return null;
 
   const client = getDatabaseClient();
-  const research = new ResearchRepository(client);
   const usage = new UsageRepository(client);
-  const rootSessionId = context.session.parent?.rootSessionId ?? context.session.id;
-  const run = await research.findRunByEveSession(rootSessionId);
-  if (!run) throw new Error("No Workbench run is mapped to this Eve session");
-
-  const runId = String(run.id);
+  const { runId } = await authorizeRuntimeCapability(context, client);
   const reserved = await usage.reservePaidOperation({
     runId,
     reservationMicrousd: tavilyReservationMicros(depth),

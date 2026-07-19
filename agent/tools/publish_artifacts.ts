@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { ResearchRepository } from "../../src/storage/repositories";
 import { getDatabaseClient } from "../../src/storage/server";
+import { authorizeRuntimeCapability } from "../../src/security/runtime_authorization";
 
 const markdownPath = /^[A-Za-z0-9._/-]+\.md$/;
 const inputSchema = z.object({
@@ -25,10 +26,9 @@ export default defineTool({
   inputSchema,
   outputSchema,
   async execute(input, context) {
-    const repository = new ResearchRepository(getDatabaseClient());
-    const rootSessionId = context.session.parent?.rootSessionId ?? context.session.id;
-    const run = await repository.findRunByEveSession(rootSessionId);
-    if (!run) throw new Error("No Workbench run is mapped to this Eve session");
+    const client = getDatabaseClient();
+    const repository = new ResearchRepository(client);
+    const { runId } = await authorizeRuntimeCapability(context, client);
     const sandbox = await context.getSandbox();
     const artifacts = [];
     for (const path of input.paths) {
@@ -37,9 +37,9 @@ export default defineTool({
       }
       const content = await sandbox.readTextFile({ path });
       if (content === null) throw new Error(`Workspace file not found: ${path}`);
-      const previous = await repository.findLatestArtifact(String(run.id), path);
+      const previous = await repository.findLatestArtifact(runId, path);
       const stored = await repository.storeArtifact({
-        runId: String(run.id),
+        runId,
         path,
         mediaType: "text/markdown",
         content,
