@@ -114,6 +114,8 @@ npm run test:web
 
 默认测试不读取真实 `.env.local`、不访问 OpenAI/Tavily，也不创建 Vercel project。完整策略见 [`docs/test.md`](docs/test.md)，架构与风险边界见 [`docs/rfc.md`](docs/rfc.md)。
 
+删除 run、Codex credential、owner database 以及 Vercel/Turso 外部资源是不同操作。停止实验时按 [`docs/teardown.md`](docs/teardown.md) 执行，不要把删除 deployment 当作完整数据销毁。
+
 ## Security Notes
 
 - `.env.local` 必须保持 `0600` 且 Git ignored；不要添加 `NEXT_PUBLIC_` credential。

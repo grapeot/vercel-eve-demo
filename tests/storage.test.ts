@@ -5,6 +5,7 @@ import {
   AccessSessionRepository,
   OAuthAttemptRepository,
   OAuthCredentialRepository,
+  OwnerDataRepository,
   ResearchRepository,
   UsageRepository,
 } from "@/src/storage/repositories";
@@ -84,6 +85,8 @@ describe("Turso storage", () => {
       }),
     ).toBe(false);
     expect((await credentials.findByOwner("owner"))?.version).toBe(2);
+    expect(await credentials.deleteByOwner("owner")).toBe(true);
+    expect(await credentials.findByOwner("owner")).toBeNull();
   });
 
   it("rate-limits device polling with an atomic next-poll claim", async () => {
@@ -294,6 +297,87 @@ describe("Turso storage", () => {
       eveSessionId: "eve-session-attached",
     });
     expect(await research.failUnattachedRun(attachedRunId)).toBe(false);
+  });
+
+  it("hard-deletes an owned run and all product children", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-delete",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-delete",
+      question: "Can this run be erased?",
+    });
+    const runId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-delete",
+      skillBundleVersion: "bundle-v1",
+    });
+    await research.appendEvent({
+      runId,
+      sequence: 0,
+      type: "session.started",
+      summary: "Started",
+    });
+    await research.storeArtifact({
+      runId,
+      path: "report.md",
+      mediaType: "text/markdown",
+      content: "# Delete me",
+    });
+
+    expect(await research.hardDeleteOwnedRun(runId, "other-owner")).toBe(false);
+    expect(await research.hardDeleteOwnedRun(runId, "access-delete")).toBe(true);
+    for (const table of [
+      "research_requests",
+      "runs",
+      "run_events",
+      "artifacts",
+      "feedback",
+      "usage_summaries",
+    ]) {
+      const result = await client.execute(`SELECT COUNT(*) AS count FROM ${table}`);
+      expect(Number(result.rows[0].count)).toBe(0);
+    }
+  });
+
+  it("purges all owner data while preserving the migration ledger", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-purge",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-purge",
+      question: "Can all owner data be erased?",
+    });
+    await research.createRun({
+      requestId,
+      workspaceId: "workspace-purge",
+      skillBundleVersion: "bundle-v1",
+    });
+
+    await new OwnerDataRepository(client).purgeAll();
+    for (const table of [
+      "access_sessions",
+      "oauth_attempts",
+      "oauth_credentials",
+      "research_requests",
+      "runs",
+      "run_events",
+      "artifacts",
+      "feedback",
+      "usage_summaries",
+      "skill_bundle_versions",
+    ]) {
+      const result = await client.execute(`SELECT COUNT(*) AS count FROM ${table}`);
+      expect(Number(result.rows[0].count)).toBe(0);
+    }
+    const migrations = await client.execute(
+      "SELECT COUNT(*) AS count FROM schema_migrations",
+    );
+    expect(Number(migrations.rows[0].count)).toBe(SCHEMA_VERSION);
   });
 
   it("atomically enforces paid operation and micro-USD run budgets", async () => {

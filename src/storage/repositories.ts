@@ -159,6 +159,14 @@ export class OAuthCredentialRepository {
     };
   }
 
+  async deleteByOwner(ownerId: string): Promise<boolean> {
+    const result = await this.client.execute({
+      sql: "DELETE FROM oauth_credentials WHERE owner_id = ?",
+      args: [ownerId],
+    });
+    return result.rowsAffected === 1;
+  }
+
   async rotateIfVersion(
     ownerId: string,
     expectedVersion: number,
@@ -452,6 +460,28 @@ export class ResearchRepository {
       args: [runId, accessSessionId],
     });
     return result.rows[0] ?? null;
+  }
+
+  async hardDeleteOwnedRun(runId: string, accessSessionId: string): Promise<boolean> {
+    const owned = await this.findOwnedRun(runId, accessSessionId);
+    if (!owned) return false;
+    const requestId = String(owned.request_id);
+    await this.client.batch(
+      [
+        { sql: "DELETE FROM feedback WHERE run_id = ?", args: [runId] },
+        { sql: "DELETE FROM artifacts WHERE run_id = ?", args: [runId] },
+        { sql: "DELETE FROM run_events WHERE run_id = ?", args: [runId] },
+        { sql: "DELETE FROM usage_summaries WHERE run_id = ?", args: [runId] },
+        { sql: "DELETE FROM runs WHERE id = ?", args: [runId] },
+        {
+          sql: `DELETE FROM research_requests WHERE id = ?
+            AND NOT EXISTS (SELECT 1 FROM runs WHERE request_id = ?)`,
+          args: [requestId, requestId],
+        },
+      ],
+      "write",
+    );
+    return true;
   }
 
   async listOwnedRuns(accessSessionId: string, limit = 20) {
@@ -794,5 +824,27 @@ export class UsageRepository {
       reservedCostMicrousd: Number(row.reserved_cost_microusd),
       estimatedCostUsd: Number(row.estimated_cost_usd),
     };
+  }
+}
+
+export class OwnerDataRepository {
+  constructor(private readonly client: Client) {}
+
+  async purgeAll(): Promise<void> {
+    await this.client.batch(
+      [
+        "DELETE FROM feedback",
+        "DELETE FROM artifacts",
+        "DELETE FROM run_events",
+        "DELETE FROM usage_summaries",
+        "DELETE FROM runs",
+        "DELETE FROM research_requests",
+        "DELETE FROM oauth_attempts",
+        "DELETE FROM oauth_credentials",
+        "DELETE FROM access_sessions",
+        "DELETE FROM skill_bundle_versions",
+      ],
+      "write",
+    );
   }
 }

@@ -221,11 +221,41 @@ async function run() {
   if (productJson.includes("must-not-persist") || productJson.includes('"secret"')) {
     throw new Error("product event projection 泄漏 secret");
   }
-  await fetch(`${origin}/api/runs/${run.runId}`, {
+  const deleteRunResponse = await fetch(`${origin}/api/runs/${run.runId}`, {
     method: "DELETE",
     headers: { Cookie: cookie },
   });
-  console.log("Web smoke passed: gate + Workbench APIs + Eve manifest");
+  if (!deleteRunResponse.ok) throw new Error("product run hard delete 失败");
+  const deletedRunResponse = await fetch(`${origin}/api/runs/${run.runId}`, {
+    headers: { Cookie: cookie },
+  });
+  if (deletedRunResponse.status !== 404) throw new Error("hard-deleted run 仍可读取");
+
+  const disconnectResponse = await fetch(`${origin}/api/codex/status`, {
+    method: "DELETE",
+    headers: { Cookie: cookie },
+  });
+  if (!disconnectResponse.ok) throw new Error("Codex local disconnect 失败");
+
+  const unconfirmedPurge = await fetch(`${origin}/api/owner/data`, {
+    method: "DELETE",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: "wrong" }),
+  });
+  if (unconfirmedPurge.status !== 400) throw new Error("owner purge 未要求精确确认");
+  const purgeResponse = await fetch(`${origin}/api/owner/data`, {
+    method: "DELETE",
+    headers: { Cookie: cookie, "Content-Type": "application/json" },
+    body: JSON.stringify({ confirmation: "PURGE OWNER DATA" }),
+  });
+  if (!purgeResponse.ok) throw new Error("owner data purge 失败");
+  const staleCookieResponse = await fetch(`${origin}/api/health`, {
+    headers: { Cookie: cookie },
+  });
+  if (staleCookieResponse.status !== 401) {
+    throw new Error("owner purge 后旧 access cookie 仍可用");
+  }
+  console.log("Web smoke passed: gate + Workbench APIs + teardown + Eve manifest");
 }
 
 try {

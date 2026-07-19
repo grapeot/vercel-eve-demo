@@ -28,6 +28,7 @@
     "enable:codex-experiment": "node scripts/enable-codex-experiment.mjs",
     "configure:tavily": "node scripts/configure-tavily.mjs",
     "db:migrate": "node --env-file=.env.local --import tsx scripts/migrate-database.ts",
+    "teardown": "node --env-file=.env.local --import tsx scripts/teardown.ts",
     "check:public": "node scripts/check-public-content.mjs",
     "verify": "npm run bundle && npm run lint && npm run typecheck && npm run test && npm run build && npm run check:public"
   },

@@ -18,3 +18,12 @@ export async function GET(request: NextRequest) {
     flow: process.env.VERCEL === "1" ? "device" : "browser",
   });
 }
+
+export async function DELETE(request: NextRequest) {
+  const owner = await authenticateOwnerRequest(request);
+  if (!owner) return NextResponse.json({ error: "Access denied" }, { status: 401 });
+  const disconnected = await new OAuthCredentialRepository(
+    getDatabaseClient(),
+  ).deleteByOwner(OWNER_CREDENTIAL_ID);
+  return NextResponse.json({ disconnected });
+}

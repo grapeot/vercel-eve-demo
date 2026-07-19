@@ -55,6 +55,6 @@ export async function DELETE(
   const { runId } = await params;
   const owned = await resolveOwnedRun(request, runId);
   if (!owned) return NextResponse.json({ error: "Run not found" }, { status: 404 });
-  await owned.repository.setRunStatus(runId, "cancelled");
-  return NextResponse.json({ cancelled: true });
+  await owned.repository.hardDeleteOwnedRun(runId, owned.owner.accessSessionId);
+  return NextResponse.json({ deleted: true });
 }

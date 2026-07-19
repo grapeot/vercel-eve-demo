@@ -4,6 +4,7 @@
 
 ### 2026-07-17
 
+- 增加分层 teardown：run DELETE 现在 hard-delete 产品记录，Codex status DELETE 删除本地加密 credential，带精确确认的 owner purge 清空产品表并注销；`scripts/teardown.ts` 可显式选择 database-only purge 或按 Vercel-first/Turso-second 删除外部资源，runbook 单列 Tavily key、OpenAI account grant、本地文件、共享 Turso group 与 Eve durable history 的人工边界。
 - 在 live model step、付费 Tavily operation 与 artifact publish 前统一复验 Turso access session、Eve initiator/current principal、run ownership 和 active run status；授权过期、撤销、错配或数据库不可用时 fail closed，并在数据库仍可写时将映射 run 推进为 `cancelled`。Eve 0.24.4 没有受支持的 durable turn cancellation API，因此已经进入的 model turn 只能在下一能力边界停止。
 - 将 `RESEARCH_MAX_SEARCHES` 与 `RESEARCH_BUDGET_USD` 从展示值改为 Turso 强制边界：schema v5 使用整数 micro-USD，在每个付费 Tavily search/extract 前原子预留 operation 与最大费用；root、child 与 continuation 通过 root Eve session 共享 run ledger，失败调用不退还 reservation，并另行累计 provider response 的实际估算费用。
 - 将公开定位明确为个人实验 reference implementation：README 首屏披露非官方 Codex hosted transport、单 owner、默认关闭、无生产/SLA/多用户保证及账号与条款风险；正式产品必须替换为 OpenAI 官方 contract，删除单个 deployment 不等于完整 teardown。
