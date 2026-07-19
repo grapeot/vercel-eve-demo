@@ -85,6 +85,8 @@ CODEX_MODEL=gpt-5.6-sol
 
 重新启动 `npm run dev`，通过 Workbench 的 Codex 按钮完成 owner OAuth。localhost 使用 browser PKCE callback；部署环境使用 device flow。该 transport 是 owner-only compatibility experiment，不接受 OpenAI API key，也不应扩展为多用户 auth contract。
 
+`RESEARCH_MAX_SEARCHES` 限制每个 run 的付费 Tavily operation 总数（search 与 extract 合计），`RESEARCH_BUDGET_USD` 限制其预留费用。两项都由 Turso 在调用供应商前原子执行；child session 与 continuation 共用 root run 的 ledger，失败调用不退还 reservation。
+
 ## Skill Bundle
 
 `agent/skills/` vendor 三个 progressive-disclosure roots：

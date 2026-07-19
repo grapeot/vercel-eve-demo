@@ -4,6 +4,7 @@
 
 ### 2026-07-17
 
+- 将 `RESEARCH_MAX_SEARCHES` 与 `RESEARCH_BUDGET_USD` 从展示值改为 Turso 强制边界：schema v5 使用整数 micro-USD，在每个付费 Tavily search/extract 前原子预留 operation 与最大费用；root、child 与 continuation 通过 root Eve session 共享 run ledger，失败调用不退还 reservation，并另行累计 provider response 的实际估算费用。
 - 将公开定位明确为个人实验 reference implementation：README 首屏披露非官方 Codex hosted transport、单 owner、默认关闭、无生产/SLA/多用户保证及账号与条款风险；正式产品必须替换为 OpenAI 官方 contract，删除单个 deployment 不等于完整 teardown。
 - 将 normalized timeline durability 从浏览器 React effect 移入 Eve authored hook：root stream event 在 durable accept 后完成 session mapping、脱敏投影、稳定 fingerprint、幂等 Turso 写入、run heartbeat 和 terminal-absorbing 状态迁移；浏览器现在只轮询 timeline，不再上传 `agent.events`。
 - 修复 Artifact Preview 高度脱离容器的问题：viewer 改为 column flex，Preview、Source 和 empty state 填满 toolbar 之外的剩余空间；移动端只约束 viewer 外层，避免父子同时使用 `58vh`。

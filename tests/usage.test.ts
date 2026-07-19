@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  tavilyReservationMicros,
   tavilyUsage,
   totalEstimatedCost,
+  usdToMicros,
 } from "@/src/research/usage";
 
 describe("usage", () => {
@@ -21,5 +23,11 @@ describe("usage", () => {
 
   it("负数 credits 不会形成负成本", () => {
     expect(tavilyUsage(-3).estimatedCostUsd).toBe(0);
+  });
+
+  it("调用前使用整数 micro-USD 预留成本", () => {
+    expect(usdToMicros(2)).toBe(2_000_000);
+    expect(tavilyReservationMicros("basic")).toBe(8_000);
+    expect(tavilyReservationMicros("advanced")).toBe(16_000);
   });
 });

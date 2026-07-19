@@ -6,6 +6,7 @@ import {
   OAuthAttemptRepository,
   OAuthCredentialRepository,
   ResearchRepository,
+  UsageRepository,
 } from "@/src/storage/repositories";
 import { persistRootEveEvent } from "@/src/events/durability";
 import { migrateDatabase, SCHEMA_VERSION } from "@/src/storage/schema";
@@ -25,12 +26,9 @@ describe("Turso storage", () => {
     const result = await client.execute(
       "SELECT version FROM schema_migrations ORDER BY version",
     );
-    expect(result.rows.map((row) => Number(row.version))).toEqual([
-      1,
-      2,
-      3,
-      SCHEMA_VERSION,
-    ]);
+    expect(result.rows.map((row) => Number(row.version))).toEqual(
+      Array.from({ length: SCHEMA_VERSION }, (_, index) => index + 1),
+    );
   });
 
   it("creates, validates, hashes metadata, and revokes access sessions", async () => {
@@ -296,6 +294,59 @@ describe("Turso storage", () => {
       eveSessionId: "eve-session-attached",
     });
     expect(await research.failUnattachedRun(attachedRunId)).toBe(false);
+  });
+
+  it("atomically enforces paid operation and micro-USD run budgets", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-budget",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const requestId = await research.createRequest({
+      accessSessionId: "access-budget",
+      question: "Will concurrent calls stay inside budget?",
+    });
+    const runId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-budget",
+      skillBundleVersion: "bundle-v1",
+    });
+    const usage = new UsageRepository(client);
+
+    const reservations = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        usage.reservePaidOperation({
+          runId,
+          reservationMicrousd: 8_000,
+          maxOperations: 5,
+          budgetMicrousd: 24_000,
+        }),
+      ),
+    );
+    expect(reservations.filter(Boolean)).toHaveLength(3);
+    await usage.recordEstimatedCost(runId, 0.008);
+    expect(await usage.find(runId)).toEqual({
+      searchCount: 3,
+      reservedCostMicrousd: 24_000,
+      estimatedCostUsd: 0.008,
+    });
+
+    const operationLimitedRunId = await research.createRun({
+      requestId,
+      workspaceId: "workspace-operation-limit",
+      skillBundleVersion: "bundle-v1",
+    });
+    const operationLimitResults = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        usage.reservePaidOperation({
+          runId: operationLimitedRunId,
+          reservationMicrousd: 8_000,
+          maxOperations: 2,
+          budgetMicrousd: 100_000,
+        }),
+      ),
+    );
+    expect(operationLimitResults.filter(Boolean)).toHaveLength(2);
   });
 
   it("persists root hook events without a browser collector", async () => {

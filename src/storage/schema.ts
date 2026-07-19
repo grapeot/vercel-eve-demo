@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -228,5 +228,20 @@ export async function migrateDatabase(client: Client): Promise<void> {
     } finally {
       await client.execute("PRAGMA foreign_keys = ON");
     }
+  }
+  const versionFive = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 5",
+  );
+  if (versionFive.rows.length === 0) {
+    await client.batch(
+      [
+        "ALTER TABLE usage_summaries ADD COLUMN reserved_cost_microusd INTEGER NOT NULL DEFAULT 0",
+        {
+          sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (5, ?)",
+          args: [new Date().toISOString()],
+        },
+      ],
+      "write",
+    );
   }
 }

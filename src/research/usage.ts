@@ -13,6 +13,15 @@ export const usageSchema = z.object({
 export type UsageRecord = z.infer<typeof usageSchema>;
 
 export const TAVILY_PAYG_USD_PER_CREDIT = 0.008;
+export const USD_MICROS = 1_000_000;
+
+export function usdToMicros(usd: number): number {
+  return Math.round(usd * USD_MICROS);
+}
+
+export function tavilyReservationMicros(depth: "basic" | "advanced"): number {
+  return usdToMicros((depth === "advanced" ? 2 : 1) * TAVILY_PAYG_USD_PER_CREDIT);
+}
 
 export function tavilyUsage(credits: number): UsageRecord {
   const safeCredits = Math.max(0, credits);

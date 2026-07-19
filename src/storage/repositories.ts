@@ -715,3 +715,84 @@ export class ResearchRepository {
     return id;
   }
 }
+
+export interface UsageSummary {
+  searchCount: number;
+  reservedCostMicrousd: number;
+  estimatedCostUsd: number;
+}
+
+export class UsageRepository {
+  constructor(private readonly client: Client) {}
+
+  async reservePaidOperation(input: {
+    runId: string;
+    reservationMicrousd: number;
+    maxOperations: number;
+    budgetMicrousd: number;
+  }): Promise<boolean> {
+    if (
+      !Number.isSafeInteger(input.reservationMicrousd) ||
+      input.reservationMicrousd < 0 ||
+      !Number.isSafeInteger(input.maxOperations) ||
+      input.maxOperations < 1 ||
+      !Number.isSafeInteger(input.budgetMicrousd) ||
+      input.budgetMicrousd < 0
+    ) {
+      throw new Error("Invalid research budget reservation");
+    }
+    const result = await this.client.execute({
+      sql: `INSERT INTO usage_summaries
+          (run_id, search_count, estimated_cost_usd, reserved_cost_microusd, updated_at)
+        SELECT ?, 1, 0, ?, ?
+        WHERE ? >= 1 AND ? <= ?
+        ON CONFLICT(run_id) DO UPDATE SET
+          search_count = search_count + 1,
+          reserved_cost_microusd = reserved_cost_microusd + excluded.reserved_cost_microusd,
+          updated_at = excluded.updated_at
+        WHERE search_count < ?
+          AND reserved_cost_microusd + excluded.reserved_cost_microusd <= ?`,
+      args: [
+        input.runId,
+        input.reservationMicrousd,
+        nowIso(),
+        input.maxOperations,
+        input.reservationMicrousd,
+        input.budgetMicrousd,
+        input.maxOperations,
+        input.budgetMicrousd,
+      ],
+    });
+    return result.rowsAffected === 1;
+  }
+
+  async recordEstimatedCost(runId: string, estimatedCostUsd: number): Promise<void> {
+    if (!Number.isFinite(estimatedCostUsd) || estimatedCostUsd < 0) {
+      throw new Error("Invalid estimated research cost");
+    }
+    const result = await this.client.execute({
+      sql: `UPDATE usage_summaries
+        SET estimated_cost_usd = estimated_cost_usd + ?, updated_at = ?
+        WHERE run_id = ?`,
+      args: [estimatedCostUsd, nowIso(), runId],
+    });
+    if (result.rowsAffected !== 1) {
+      throw new Error("Research usage reservation is missing");
+    }
+  }
+
+  async find(runId: string): Promise<UsageSummary | null> {
+    const result = await this.client.execute({
+      sql: `SELECT search_count, reserved_cost_microusd, estimated_cost_usd
+        FROM usage_summaries WHERE run_id = ?`,
+      args: [runId],
+    });
+    const row = result.rows[0];
+    if (!row) return null;
+    return {
+      searchCount: Number(row.search_count),
+      reservedCostMicrousd: Number(row.reserved_cost_microusd),
+      estimatedCostUsd: Number(row.estimated_cost_usd),
+    };
+  }
+}
