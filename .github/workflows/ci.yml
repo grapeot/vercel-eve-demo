@@ -1,8 +1,9 @@
 name: CI
 
-on:
+"on":
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -17,7 +18,16 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run verify
-      - run: npm run test:eve
-      - run: npm run test:web
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify
+        run: npm run verify
+      - name: Eve session smoke
+        run: |
+          if [ -r /dev/kvm ] && [ -w /dev/kvm ]; then
+            npm run test:eve
+          else
+            echo "::notice::Skipping Eve session smoke because this runner has no writable /dev/kvm"
+          fi
+      - name: Web smoke
+        run: npm run test:web

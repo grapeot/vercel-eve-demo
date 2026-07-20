@@ -4,6 +4,7 @@
 
 ### 2026-07-17
 
+- 修复 public GitHub Actions 启动诊断：workflow 增加手动 dispatch 与明确 step 名；hosted runner 没有可写 `/dev/kvm` 时只跳过真实 Microsandbox session smoke，仍执行完整 verify 和不创建 VM 的 Web smoke。
 - 新增 `current_time` authored typed tool：从可信 app runtime 返回 UTC 与指定 IANA timezone 的日期、当地时间和 offset；相对日期问题必须在 request/plan 与搜索前调用，不再依赖模型自身的陈旧日期，同时继续禁用完整 Bash。
 - Public release 交叉审查修复组合风险：hard-delete 会先写入 Eve session tombstone，自动与显式 attach 都拒绝旧 durable session；platform teardown 不再把 ambiguous `404` 当作删除成功；OAuth completion 以事务原子 consume attempt 并写 credential，disconnect 同事务删除 attempts/token。Schema v6 增加 tombstone，独立 v7 migration 取消跨版本 active runs且不篡改已发布 v5；UI 也不再在 HTTP 或网络 DELETE 失败时伪装成本地删除成功。
 - 删除 `POST /api/runs/[runId]/events` 及其 browser batch schema；timeline route 只保留 authenticated GET，唯一持久化路径是 Eve authored root hook。Web smoke 直接预置可信 fixture 并断言 browser POST 为 `405`，避免测试本身重新引入生产写入面。
