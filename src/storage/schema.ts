@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 7;
 
 const schemaStatements = [
   `CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -107,6 +107,10 @@ const schemaStatements = [
     search_count INTEGER NOT NULL DEFAULT 0,
     estimated_cost_usd REAL NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS retired_eve_sessions (
+    eve_session_id TEXT PRIMARY KEY,
+    retired_at TEXT NOT NULL
   )`,
   "CREATE INDEX IF NOT EXISTS oauth_attempts_session_idx ON oauth_attempts(access_session_id, expires_at)",
   "CREATE INDEX IF NOT EXISTS runs_created_idx ON runs(created_at DESC)",
@@ -238,6 +242,39 @@ export async function migrateDatabase(client: Client): Promise<void> {
         "ALTER TABLE usage_summaries ADD COLUMN reserved_cost_microusd INTEGER NOT NULL DEFAULT 0",
         {
           sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (5, ?)",
+          args: [new Date().toISOString()],
+        },
+      ],
+      "write",
+    );
+  }
+  const versionSix = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 6",
+  );
+  if (versionSix.rows.length === 0) {
+    await client.batch(
+      [
+        `CREATE TABLE IF NOT EXISTS retired_eve_sessions (
+          eve_session_id TEXT PRIMARY KEY,
+          retired_at TEXT NOT NULL
+        )`,
+        {
+          sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (6, ?)",
+          args: [new Date().toISOString()],
+        },
+      ],
+      "write",
+    );
+  }
+  const versionSeven = await client.execute(
+    "SELECT 1 FROM schema_migrations WHERE version = 7",
+  );
+  if (versionSeven.rows.length === 0) {
+    await client.batch(
+      [
+        "UPDATE runs SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE status IN ('queued', 'running', 'waiting')",
+        {
+          sql: "INSERT INTO schema_migrations(version, applied_at) VALUES (7, ?)",
           args: [new Date().toISOString()],
         },
       ],

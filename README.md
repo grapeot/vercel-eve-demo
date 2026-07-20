@@ -64,6 +64,8 @@ npm run dev
 
 如果 `.env.local` 已存在，不要重跑会拒绝覆盖文件的 `init:private-access`；按 `.env.example` 补齐缺失变量即可。
 
+升级已有部署时先阻止新 run，再执行 `npm run db:migrate`，确认成功后部署新代码。Schema v5 增加预算 reservation，v6 增加已删除 Eve session 的迟到事件 tombstone，v7 会保守地取消升级时仍为 queued/running/waiting 的 run，避免它们带着迁移前无法重建的 usage 穿越新预算边界。不要先部署依赖新列的代码再迁移，也不要修改已经发布并记录的 migration。
+
 ## 启用 Live Research
 
 Tavily 由 `agent/tools/web_search.ts` 与 `web_extract.ts` 在可信 app runtime 直接调用。key 不进入浏览器、prompt、Sandbox 或 tool output：
@@ -121,6 +123,7 @@ npm run test:web
 - `.env.local` 必须保持 `0600` 且 Git ignored；不要添加 `NEXT_PUBLIC_` credential。
 - OAuth token 使用 AES-256-GCM envelope 存储，refresh 使用 Turso lease 与 credential-version CAS。
 - proxy 对页面、API 和 Eve rewrite 使用同一 owner gate；所有 run/artifact API 再校验 access-session ownership。
+- 当前 run history 按 8 小时 access session 分区。Cookie 过期、logout 或重新 challenge 后，旧 run 仍留在 Turso，但不会出现在新 session 的 Workbench UI；这不是稳定 owner archive，清理时仍须执行 owner-wide purge。
 - artifact 是 immutable revision；feedback 绑定 `sha256` content hash，旧 revision 不能被静默覆盖。
 - Next `16.2.6` 的传递依赖仍受 `GHSA-qx2v-qp2m-jg93` 影响。不要使用会破坏性降级 Next 的 `npm audit fix --force`。
 

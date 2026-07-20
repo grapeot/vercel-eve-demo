@@ -35,9 +35,27 @@ export class CodexCredentialService {
   }
 
   async storeTokens(tokens: CodexTokenResponse): Promise<void> {
+    await this.repository.upsert(this.encryptedCredential(tokens));
+  }
+
+  async storeTokensFromAttempt(
+    tokens: CodexTokenResponse,
+    attemptId: string,
+    accessSessionId: string,
+  ): Promise<boolean> {
+    return this.repository.upsertFromPendingAttempt({
+      attemptId,
+      accessSessionId,
+      credential: this.encryptedCredential(tokens),
+    });
+  }
+
+  private encryptedCredential(
+    tokens: CodexTokenResponse,
+  ): Omit<StoredCredential, "id" | "version" | "status"> {
     const accountId = extractAccountId(tokens);
     if (!accountId) throw new Error("Codex token did not include an account identifier");
-    await this.repository.upsert({
+    return {
       ownerId: OWNER_CREDENTIAL_ID,
       legacyAccessSessionId: null,
       encryptedAccessToken: this.cipher.encrypt(
@@ -53,7 +71,7 @@ export class CodexCredentialService {
       ).toISOString(),
       accountId,
       scope: tokens.scope ?? null,
-    });
+    };
   }
 
   async resolve(): Promise<ResolvedCodexCredential> {

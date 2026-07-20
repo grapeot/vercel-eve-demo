@@ -1,8 +1,8 @@
 # RFC：Personal Research Workbench V0
 
-> 状态：Research-first architecture draft  
-> 决策日期：2026-07-16  
-> 当前阶段：先固定目标架构和 Open Questions，再用 Eve/Vercel/OpenCode live evidence 关闭问题
+> 状态：Implemented experimental reference
+> 决策日期：2026-07-16
+> 当前阶段：核心架构已由 mock、live 和 deployment evidence 验证；未解决限制在各节与 teardown runbook 中明确保留
 
 ## 1. 系统形状
 
@@ -239,10 +239,10 @@ localhost
 
 Vercel
   -> 没有公开可注册 HTTPS callback
-  -> full Codex subscription inference 暂不启用
+  -> owner-only device flow compatibility experiment
 ```
 
-Owner 已选择第一条路径作为短期实验：Vercel server-side device flow + private Codex backend。第二条 local runner bridge 不进入 V0。
+Owner 已选择 Vercel server-side device flow + private Codex backend 作为短期实验。它不把 device flow 宣称为公开第三方 OAuth contract；local runner bridge 不进入 V0。
 
 Vercel device flow：
 

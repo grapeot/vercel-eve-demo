@@ -62,12 +62,12 @@ export async function ensureLocalCodexCallbackServer(): Promise<void> {
         verifier: payload.verifier,
         redirectUri: attempt.redirectUri,
       });
-      await createCredentialService({
+      const stored = await createCredentialService({
         client: getDatabaseClient(),
         config,
         encryptionKey,
-      }).storeTokens(tokens);
-      await attempts.consume(attempt.id);
+      }).storeTokensFromAttempt(tokens, attempt.id, attempt.accessSessionId);
+      if (!stored) throw new Error("OAuth attempt was revoked before completion");
       response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
       response.end(html("ChatGPT/Codex connected"));
     } catch {

@@ -391,7 +391,13 @@ function Workbench({
     if (!runId) return;
     if (!window.confirm("Permanently delete this run and its stored artifacts?")) return;
     if (busy) agent.stop();
-    await fetch(`/api/runs/${runId}`, { method: "DELETE" });
+    try {
+      const response = await fetch(`/api/runs/${runId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error(`Run deletion failed with HTTP ${response.status}`);
+    } catch {
+      setError("The run could not be deleted. Its server-side data may still exist.");
+      return;
+    }
     agent.reset();
     setRunId(null);
     setRunStatus("idle");

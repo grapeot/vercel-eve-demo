@@ -155,9 +155,9 @@ Tavily 暴露为 authored typed tool，而不是让模型使用通用 shell：
 - `web_extract`：读取已选择 URL 的正文或相关 chunks。
 - tool input/output 使用稳定 schema。
 - Tavily credential 只存在于 app-side credential boundary，不进入 Sandbox process。
-- localhost 与 Vercel 使用同一个 tool implementation 和相同网络调用路径，不提供交互式 mock 模式。
+- localhost 与 Vercel 使用同一个 tool implementation。默认交互式 mock 模式返回 deterministic fixture 且不访问网络；显式 live 模式才使用相同的 Tavily 网络调用路径。
 
-自动化测试可以使用 fixture 或 fake provider；用户实际运行路径只能是 live。
+自动化测试和浏览器 demo 都可使用 fixture；只有需要真实研究证据的 owner run 才启用 live。
 
 ## 数据管理
 

@@ -20,7 +20,7 @@ function requireEnvironment(name: string): string {
 }
 
 async function expectDeleted(response: Response, service: string): Promise<void> {
-  if (response.ok || response.status === 404) return;
+  if (response.ok) return;
   throw new Error(`${service} teardown failed with HTTP ${response.status}`);
 }
 

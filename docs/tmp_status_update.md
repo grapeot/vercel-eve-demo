@@ -34,7 +34,7 @@ Eve runtime
 
 这条路径不依赖浏览器上传中间状态，因此当前 run 已经可以在执行期间显示 `request.md`、`plan.md`、fact-check 等文件。实现位置见 `agent/tools/publish_artifacts.ts` 和 `src/storage/repositories.ts`。
 
-### 当前失效的路径
+### 已移除的历史路径
 
 ```text
 Eve durable stream
@@ -46,9 +46,9 @@ Eve durable stream
   -> Run Inspector
 ```
 
-当前页面在 `currentSessionId` 或 `attached` 缺失时直接跳过 event batch upload，见 `app/_components/research-console.tsx`。本轮 live run 已由 server-side `step.started` 成功绑定 Eve session，但浏览器没有发出 attach PATCH，导致 `run_events=0`。这证明产品 run mapping 和前端 upload gate 已经形成两个不一致的真相来源。
+这是迁移前的问题记录，不是当前实现。浏览器 batch upload 与 `POST /api/runs/:runId/events` 已删除，当前唯一写入者是 Eve authored root hook；events API 只保留 authenticated GET。
 
-RFC 原本要求 Root raw stream 不直接交给浏览器，由 server-side projector 负责 redaction、cursor 和 replay，见 `docs/rfc.md` 的 Event Model。当前实现没有达到这条设计。
+RFC 要求 Root raw stream 不由浏览器持久化，由 server-side projector 负责 redaction、cursor 和 replay；当前实现已达到这条边界。
 
 ## 设计决策
 

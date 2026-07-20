@@ -160,11 +160,65 @@ export class OAuthCredentialRepository {
   }
 
   async deleteByOwner(ownerId: string): Promise<boolean> {
-    const result = await this.client.execute({
-      sql: "DELETE FROM oauth_credentials WHERE owner_id = ?",
-      args: [ownerId],
-    });
-    return result.rowsAffected === 1;
+    const results = await this.client.batch(
+      [
+        "DELETE FROM oauth_attempts",
+        { sql: "DELETE FROM oauth_credentials WHERE owner_id = ?", args: [ownerId] },
+      ],
+      "write",
+    );
+    return results[1].rowsAffected === 1;
+  }
+
+  async upsertFromPendingAttempt(input: {
+    attemptId: string;
+    accessSessionId: string;
+    credential: Omit<StoredCredential, "id" | "version" | "status">;
+  }): Promise<boolean> {
+    const id = randomUUID();
+    const timestamp = nowIso();
+    const results = await this.client.batch(
+      [
+        {
+          sql: `UPDATE oauth_attempts SET consumed_at = ?
+            WHERE id = ? AND access_session_id = ? AND consumed_at IS NULL
+              AND expires_at > ?`,
+          args: [timestamp, input.attemptId, input.accessSessionId, timestamp],
+        },
+        {
+          sql: `INSERT INTO oauth_credentials
+              (id, owner_id, legacy_access_session_id, encrypted_access_token,
+               encrypted_refresh_token, account_id, scope, expires_at,
+               credential_version, status, created_at, updated_at)
+            SELECT ?, ?, NULL, ?, ?, ?, ?, ?, 1, 'active', ?, ?
+            WHERE changes() = 1
+            ON CONFLICT(owner_id) DO UPDATE SET
+              legacy_access_session_id = NULL,
+              encrypted_access_token = excluded.encrypted_access_token,
+              encrypted_refresh_token = excluded.encrypted_refresh_token,
+              account_id = excluded.account_id,
+              scope = excluded.scope,
+              expires_at = excluded.expires_at,
+              credential_version = oauth_credentials.credential_version + 1,
+              status = 'active',
+              refresh_lease_until = NULL,
+              updated_at = excluded.updated_at`,
+          args: [
+            id,
+            input.credential.ownerId,
+            input.credential.encryptedAccessToken,
+            input.credential.encryptedRefreshToken,
+            input.credential.accountId,
+            input.credential.scope,
+            input.credential.expiresAt,
+            timestamp,
+            timestamp,
+          ],
+        },
+      ],
+      "write",
+    );
+    return results[1].rowsAffected === 1;
   }
 
   async rotateIfVersion(
@@ -334,13 +388,6 @@ export class OAuthAttemptRepository {
     return result.rowsAffected === 1;
   }
 
-  async consume(id: string): Promise<boolean> {
-    const result = await this.client.execute({
-      sql: "UPDATE oauth_attempts SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL",
-      args: [nowIso(), id],
-    });
-    return result.rowsAffected === 1;
-  }
 }
 
 function mapOAuthAttempt(row: Record<string, InValue>): StoredOAuthAttempt {
@@ -409,12 +456,16 @@ export class ResearchRepository {
       sql: `UPDATE runs SET eve_session_id = ?, status = 'running', updated_at = ?
         WHERE id = ? AND request_id IN (
           SELECT id FROM research_requests WHERE access_session_id = ?
-        ) AND (eve_session_id IS NULL OR eve_session_id = ?)`,
+        ) AND (eve_session_id IS NULL OR eve_session_id = ?)
+          AND NOT EXISTS (
+            SELECT 1 FROM retired_eve_sessions WHERE eve_session_id = ?
+          )`,
       args: [
         input.eveSessionId,
         nowIso(),
         input.runId,
         input.accessSessionId,
+        input.eveSessionId,
         input.eveSessionId,
       ],
     });
@@ -432,9 +483,18 @@ export class ResearchRepository {
           JOIN research_requests ON research_requests.id = runs.request_id
           WHERE research_requests.access_session_id = ?
             AND runs.status = 'queued' AND runs.eve_session_id IS NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM retired_eve_sessions WHERE eve_session_id = ?
+            )
           ORDER BY runs.created_at DESC LIMIT 1
         ) AND NOT EXISTS (SELECT 1 FROM runs WHERE eve_session_id = ?)`,
-      args: [input.eveSessionId, nowIso(), input.accessSessionId, input.eveSessionId],
+      args: [
+        input.eveSessionId,
+        nowIso(),
+        input.accessSessionId,
+        input.eveSessionId,
+        input.eveSessionId,
+      ],
     });
     return result.rowsAffected === 1;
   }
@@ -466,8 +526,14 @@ export class ResearchRepository {
     const owned = await this.findOwnedRun(runId, accessSessionId);
     if (!owned) return false;
     const requestId = String(owned.request_id);
+    const eveSessionId = rowString(owned.eve_session_id);
     await this.client.batch(
       [
+        {
+          sql: `INSERT OR IGNORE INTO retired_eve_sessions (eve_session_id, retired_at)
+            SELECT ?, ? WHERE ? IS NOT NULL`,
+          args: [eveSessionId, nowIso(), eveSessionId],
+        },
         { sql: "DELETE FROM feedback WHERE run_id = ?", args: [runId] },
         { sql: "DELETE FROM artifacts WHERE run_id = ?", args: [runId] },
         { sql: "DELETE FROM run_events WHERE run_id = ?", args: [runId] },
@@ -843,6 +909,7 @@ export class OwnerDataRepository {
         "DELETE FROM oauth_credentials",
         "DELETE FROM access_sessions",
         "DELETE FROM skill_bundle_versions",
+        "DELETE FROM retired_eve_sessions",
       ],
       "write",
     );

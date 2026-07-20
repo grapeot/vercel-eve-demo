@@ -64,12 +64,14 @@ export async function POST(request: NextRequest) {
       verifier: polled.codeVerifier,
       redirectUri: attempt.redirectUri!,
     });
-    await createCredentialService({
+    const stored = await createCredentialService({
       client: getDatabaseClient(),
       config,
       encryptionKey,
-    }).storeTokens(tokens);
-    await attempts.consume(attempt.id);
+    }).storeTokensFromAttempt(tokens, attempt.id, attempt.accessSessionId);
+    if (!stored) {
+      return NextResponse.json({ error: "Authorization attempt expired" }, { status: 410 });
+    }
     return NextResponse.json({ status: "connected" });
   } catch {
     return NextResponse.json(

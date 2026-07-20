@@ -89,6 +89,71 @@ describe("Turso storage", () => {
     expect(await credentials.findByOwner("owner")).toBeNull();
   });
 
+  it("atomically consumes OAuth attempts when storing or disconnecting credentials", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-oauth-atomic",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const attempts = new OAuthAttemptRepository(client);
+    const credentials = new OAuthCredentialRepository(client);
+    const attemptId = await attempts.create({
+      accessSessionId: "access-oauth-atomic",
+      flow: "device",
+      stateHash: null,
+      encryptedPayload: "encrypted-attempt",
+      redirectUri: "https://example.com/callback",
+      pollIntervalSeconds: 5,
+      nextPollAt: null,
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const credential = {
+      ownerId: "owner",
+      legacyAccessSessionId: null,
+      encryptedAccessToken: "encrypted-access",
+      encryptedRefreshToken: "encrypted-refresh",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+      accountId: "account-atomic",
+      scope: "openid",
+    };
+
+    expect(
+      await credentials.upsertFromPendingAttempt({
+        attemptId,
+        accessSessionId: "access-oauth-atomic",
+        credential,
+      }),
+    ).toBe(true);
+    expect(
+      await credentials.upsertFromPendingAttempt({
+        attemptId,
+        accessSessionId: "access-oauth-atomic",
+        credential,
+      }),
+    ).toBe(false);
+    expect(await credentials.deleteByOwner("owner")).toBe(true);
+    expect(await attempts.findPending(attemptId, "access-oauth-atomic")).toBeNull();
+
+    const revokedAttemptId = await attempts.create({
+      accessSessionId: "access-oauth-atomic",
+      flow: "device",
+      stateHash: null,
+      encryptedPayload: "encrypted-revoked-attempt",
+      redirectUri: "https://example.com/callback",
+      pollIntervalSeconds: 5,
+      nextPollAt: null,
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    await credentials.deleteByOwner("owner");
+    expect(
+      await credentials.upsertFromPendingAttempt({
+        attemptId: revokedAttemptId,
+        accessSessionId: "access-oauth-atomic",
+        credential,
+      }),
+    ).toBe(false);
+    expect(await credentials.findByOwner("owner")).toBeNull();
+  });
+
   it("rate-limits device polling with an atomic next-poll claim", async () => {
     const sessions = new AccessSessionRepository(client);
     await sessions.create({
@@ -342,6 +407,64 @@ describe("Turso storage", () => {
     }
   });
 
+  it("prevents late events from a deleted Eve session hijacking the next run", async () => {
+    await new AccessSessionRepository(client).create({
+      id: "access-retired-session",
+      expiresAt: "2030-01-01T00:00:00.000Z",
+    });
+    const research = new ResearchRepository(client);
+    const firstRequestId = await research.createRequest({
+      accessSessionId: "access-retired-session",
+      question: "First run",
+    });
+    const firstRunId = await research.createRun({
+      requestId: firstRequestId,
+      workspaceId: "workspace-retired-first",
+      skillBundleVersion: "bundle-v1",
+    });
+    await research.attachSession({
+      runId: firstRunId,
+      accessSessionId: "access-retired-session",
+      eveSessionId: "eve-retired-session",
+    });
+    await research.hardDeleteOwnedRun(firstRunId, "access-retired-session");
+
+    const secondRequestId = await research.createRequest({
+      accessSessionId: "access-retired-session",
+      question: "Second run",
+    });
+    const secondRunId = await research.createRun({
+      requestId: secondRequestId,
+      workspaceId: "workspace-retired-second",
+      skillBundleVersion: "bundle-v1",
+    });
+    expect(
+      await research.attachSession({
+        runId: secondRunId,
+        accessSessionId: "access-retired-session",
+        eveSessionId: "eve-retired-session",
+      }),
+    ).toBe(false);
+    const lateEvent = await persistRootEveEvent({
+      repository: research,
+      session: {
+        id: "eve-retired-session",
+        auth: {
+          initiator: { principalId: "access-retired-session" },
+          current: { principalId: "access-retired-session" },
+        },
+      },
+      event: { type: "turn.started", data: { turnId: "late-turn" } },
+    });
+
+    expect(lateEvent).toBe(false);
+    expect(await research.findRunByEveSession("eve-retired-session")).toBeNull();
+    expect(await research.findOwnedRun(secondRunId, "access-retired-session")).toMatchObject({
+      status: "queued",
+      eve_session_id: null,
+    });
+  });
+
   it("purges all owner data while preserving the migration ledger", async () => {
     await new AccessSessionRepository(client).create({
       id: "access-purge",
@@ -357,6 +480,9 @@ describe("Turso storage", () => {
       workspaceId: "workspace-purge",
       skillBundleVersion: "bundle-v1",
     });
+    await client.execute(
+      "INSERT INTO retired_eve_sessions (eve_session_id, retired_at) VALUES ('purge-tombstone', '2026-07-17T00:00:00.000Z')",
+    );
 
     await new OwnerDataRepository(client).purgeAll();
     for (const table of [
@@ -370,6 +496,7 @@ describe("Turso storage", () => {
       "feedback",
       "usage_summaries",
       "skill_bundle_versions",
+      "retired_eve_sessions",
     ]) {
       const result = await client.execute(`SELECT COUNT(*) AS count FROM ${table}`);
       expect(Number(result.rows[0].count)).toBe(0);
@@ -378,6 +505,47 @@ describe("Turso storage", () => {
       "SELECT COUNT(*) AS count FROM schema_migrations",
     );
     expect(Number(migrations.rows[0].count)).toBe(SCHEMA_VERSION);
+  });
+
+  it("upgrades an existing v5 database and cancels active runs in v7", async () => {
+    const legacyClient = createClient({ url: ":memory:" });
+    try {
+      await migrateDatabase(legacyClient);
+      await legacyClient.execute("DELETE FROM schema_migrations WHERE version >= 6");
+      await legacyClient.execute("DROP TABLE retired_eve_sessions");
+
+      await new AccessSessionRepository(legacyClient).create({
+        id: "access-v5-upgrade",
+        expiresAt: "2030-01-01T00:00:00.000Z",
+      });
+      const legacyResearch = new ResearchRepository(legacyClient);
+      const requestId = await legacyResearch.createRequest({
+        accessSessionId: "access-v5-upgrade",
+        question: "Will migration cancel this active run?",
+      });
+      const runId = await legacyResearch.createRun({
+        requestId,
+        workspaceId: "workspace-v5-upgrade",
+        skillBundleVersion: "bundle-v1",
+      });
+      await legacyClient.execute({
+        sql: "UPDATE runs SET status = 'running', eve_session_id = ? WHERE id = ?",
+        args: ["eve-v5-upgrade", runId],
+      });
+
+      await migrateDatabase(legacyClient);
+      expect(await legacyResearch.findRunByEveSession("eve-v5-upgrade")).toMatchObject({
+        status: "cancelled",
+      });
+      const versions = await legacyClient.execute(
+        "SELECT version FROM schema_migrations ORDER BY version",
+      );
+      expect(versions.rows.map((row) => Number(row.version))).toEqual(
+        Array.from({ length: SCHEMA_VERSION }, (_, index) => index + 1),
+      );
+    } finally {
+      legacyClient.close();
+    }
   });
 
   it("atomically enforces paid operation and micro-USD run budgets", async () => {

@@ -4,7 +4,7 @@
 
 ## Product Data
 
-- Workbench 的 `Delete current` 会 hard-delete 对应 Turso run、request、events、artifacts、feedback 和 usage。它不会物理删除 Eve durable workflow history，也不能立刻终止已经进入的 Eve 0.24.4 model turn。
+- Workbench 的 `Delete current` 会 hard-delete 对应 Turso run、request、events、artifacts、feedback 和 usage，并保留不含内容的 Eve session tombstone，防止迟到事件劫持后续 run。它不会物理删除 Eve durable workflow history，也不能立刻终止已经进入的 Eve 0.24.4 model turn；owner-wide purge 会一并删除 tombstone。
 - `DELETE /api/codex/status` 会删除 Turso 中 owner 的加密 Codex access/refresh token。它不会声称调用上游 revoke endpoint；本项目使用的 compatibility transport 没有受支持的第三方 revoke contract。
 - `DELETE /api/owner/data` 需要 authenticated owner cookie 和 JSON `{"confirmation":"PURGE OWNER DATA"}`。成功后清空所有产品表并注销当前 cookie。
 - 无浏览器时可运行 `npm run teardown -- --owner-data --confirm="PURGE OWNER DATA"`。它只清空当前 `.env.local` 指向的 database，不删除 Vercel 或 Turso 资源。
@@ -24,7 +24,7 @@ npm run teardown -- --platform \
   --confirm="DELETE replace-with-project-id-or-name AND replace-with-organization/replace-with-database-name"
 ```
 
-Vercel 删除失败时脚本不会继续删除 Turso。Vercel 删除成功但 Turso 删除失败时，应使用 Turso dashboard/API 完成 database 删除；不要重新部署已删除的 project 指向残留 database。
+脚本只把 2xx 视为已确认删除；包括 `404` 在内的 Vercel 非 2xx 响应都会停止流程，避免错误 scope 或 project ID 导致 Turso 被先行删除。Vercel 删除成功但 Turso 删除失败时，应使用 Turso dashboard/API 完成 database 删除；不要重新部署已删除的 project 指向残留 database。
 
 ## Provider Checks
 
