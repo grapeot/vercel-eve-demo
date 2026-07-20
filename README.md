@@ -91,7 +91,7 @@ CODEX_MODEL=gpt-5.6-sol
 
 ## Skill Bundle
 
-`agent/skills/` vendor 三个 progressive-disclosure roots：
+`current_time` typed tool 从可信 app runtime 返回指定 IANA timezone 的当前日期时间，专门解析“今天/昨天/最新”等相对时间；它不开放 shell、文件或网络能力。`agent/skills/` vendor 三个 progressive-disclosure roots：
 
 - `deep-research`：来源分层、研究分解、artifact contract 和并行 child guidance。
 - `tavily`：search/extract contract 与来源审计。
@@ -107,7 +107,7 @@ npm run test:eve
 npm run test:web
 ```
 
-- `npm test`：安全配置、Turso repositories、OAuth、Tavily、event projection、artifact revisions 和 Skill Bundle。
+- `npm test`：安全配置、可信 runtime 时间、Turso repositories、OAuth、Tavily、event projection、artifact revisions 和 Skill Bundle。
 - `npm run test:eve`：真实 Eve compiler/session/tool/stream 的离线 mock smoke。
 - `npm run test:web`：独立 Eve + Next + 临时 libSQL，覆盖 challenge gate、run/session mapping、event redaction 和 manifest。
 - `npm run build`：Eve Nitro build + Next production build。

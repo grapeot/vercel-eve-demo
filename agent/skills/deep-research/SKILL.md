@@ -8,14 +8,15 @@ Use this skill for current, disputed, or unfamiliar questions that require web e
 
 ## Required Sequence
 
-1. Write `request.md` with the actual decision question, audience, constraints, and known assumptions.
-2. Write `plan.md` with independent evidence questions and a stopping rule.
-3. Load the source policy, artifact contract, and Tavily skill.
-4. Search broadly enough to identify primary sources and credible independent checks. Extract selected pages before relying on detailed claims.
-5. Build `source_index.md`, `claim_table.md`, and `fact_check.md`. Record what each source supports and what it does not support.
-6. Use fresh child agents only when independent exploration or adversarial review adds value. Give each child non-overlapping output files.
-7. Load external-writing after the evidence pack is stable. Write `report.md` only after thesis and prose QA.
-8. End chat with a concise conclusion, usage summary, unresolved limitations, and a link to `report.md`.
+1. If the question contains a relative date, call `current_time` for the relevant IANA timezone before interpreting it. Never use the model's own date as evidence.
+2. Write `request.md` with the actual decision question, audience, constraints, resolved calendar date, and known assumptions.
+3. Write `plan.md` with independent evidence questions and a stopping rule.
+4. Load the source policy, artifact contract, and Tavily skill.
+5. Search broadly enough to identify primary sources and credible independent checks. Extract selected pages before relying on detailed claims.
+6. Build `source_index.md`, `claim_table.md`, and `fact_check.md`. Record what each source supports and what it does not support.
+7. Use fresh child agents only when independent exploration or adversarial review adds value. Give each child non-overlapping output files.
+8. Load external-writing after the evidence pack is stable. Write `report.md` only after thesis and prose QA.
+9. End chat with a concise conclusion, usage summary, unresolved limitations, and a link to `report.md`.
 
 ## Cost Boundary
 

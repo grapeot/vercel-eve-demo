@@ -13,6 +13,7 @@
 - Codex PKCE/device request schema、account metadata extraction、encrypted token persistence、distributed refresh lease/CAS 和 private Responses transport header/endpoint boundary。
 - Tavily app-runtime search/extract request contract、response normalization、usage 和错误脱敏。
 - usage credits 与美元估算。
+- trusted runtime time 的 UTC、IANA timezone 和无效 timezone 拒绝。
 - Skill Bundle manifest 与 lockfile 生成。
 - deep-research skill 的必要 contract。
 - Eve event projector 的 reasoning drop、credential redaction、Tavily output minimization 和 run status mapping。
@@ -26,7 +27,7 @@
 
 `npm run build` 先执行 `eve build`，再执行 `next build`。两步都必须在没有 credential 时成功。
 
-`npm run test:web` 使用临时本地 libSQL database、独立 Eve app copy 和独立 Next dist directory。它验证统一 challenge gate、cookie、首页与 health；检查 Eve manifest 中三个 static skills、typed Tavily tools、`publish_artifacts` 和禁用的 `bash`；再创建 owner run、绑定 Eve session，并断言浏览器 event POST 返回 `405`、只读 timeline 不泄漏 credential/continuation token。最后验证 run hard-delete、Codex local disconnect、owner purge 精确确认以及 purge 后旧 cookie 失效。测试结束删除全部临时数据，不读取 `.env.local`。
+`npm run test:web` 使用临时本地 libSQL database、独立 Eve app copy 和独立 Next dist directory。它验证统一 challenge gate、cookie、首页与 health；检查 Eve manifest 中三个 static skills、`current_time`、typed Tavily tools、`publish_artifacts` 和禁用的 `bash`；再创建 owner run、绑定 Eve session，并断言浏览器 event POST 返回 `405`、只读 timeline 不泄漏 credential/continuation token。最后验证 run hard-delete、Codex local disconnect、owner purge 精确确认以及 purge 后旧 cookie 失效。测试结束删除全部临时数据，不读取 `.env.local`。
 
 ## Turso Migration
 
