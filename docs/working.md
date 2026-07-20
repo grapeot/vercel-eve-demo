@@ -4,6 +4,7 @@
 
 ### 2026-07-17
 
+- 新增 `current_time` authored typed tool：从可信 app runtime 返回 UTC 与指定 IANA timezone 的日期、当地时间和 offset；相对日期问题必须在 request/plan 与搜索前调用，不再依赖模型自身的陈旧日期，同时继续禁用完整 Bash。
 - Public release 交叉审查修复组合风险：hard-delete 会先写入 Eve session tombstone，自动与显式 attach 都拒绝旧 durable session；platform teardown 不再把 ambiguous `404` 当作删除成功；OAuth completion 以事务原子 consume attempt 并写 credential，disconnect 同事务删除 attempts/token。Schema v6 增加 tombstone，独立 v7 migration 取消跨版本 active runs且不篡改已发布 v5；UI 也不再在 HTTP 或网络 DELETE 失败时伪装成本地删除成功。
 - 删除 `POST /api/runs/[runId]/events` 及其 browser batch schema；timeline route 只保留 authenticated GET，唯一持久化路径是 Eve authored root hook。Web smoke 直接预置可信 fixture 并断言 browser POST 为 `405`，避免测试本身重新引入生产写入面。
 - 增加分层 teardown：run DELETE 现在 hard-delete 产品记录，Codex status DELETE 删除本地加密 credential，带精确确认的 owner purge 清空产品表并注销；`scripts/teardown.ts` 可显式选择 database-only purge 或按 Vercel-first/Turso-second 删除外部资源，runbook 单列 Tavily key、OpenAI account grant、本地文件、共享 Turso group 与 Eve durable history 的人工边界。

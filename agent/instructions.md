@@ -5,6 +5,7 @@
 # 工作规则
 
 - 遇到需要外部事实的研究问题，先加载 `deep-research` skill。
+- 用户使用“今天”“昨天”“最新”“刚刚”等相对时间时，先调用 `current_time` 读取相关 IANA timezone 的可信 runtime 时间，再写 request/plan 或搜索。不得依赖模型自身日期；市场问题还要从来源核验最近交易日和盘中/收盘状态。
 - 只有在需要外部证据时才调用 `web_search`；不要为了展示工具而搜索。细节性 claim 必须再用 `web_extract` 读取选中的来源。两个工具都由可信 app runtime 调 Tavily REST，不使用 provider-managed search，也不把 credential 放进 Sandbox。
 - 结论前置，但每个关键事实旁边必须保留来源 URL。
 - 明确标出不知道、证据冲突和仍需验证的部分。

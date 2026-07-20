@@ -147,6 +147,7 @@ async function run() {
   }
   const webSearch = eveInfo.tools?.authored?.find((tool) => tool.name === "web_search");
   const webExtract = eveInfo.tools?.authored?.find((tool) => tool.name === "web_extract");
+  const currentTime = eveInfo.tools?.authored?.find((tool) => tool.name === "current_time");
   const publishArtifacts = eveInfo.tools?.authored?.find(
     (tool) => tool.name === "publish_artifacts",
   );
@@ -156,12 +157,13 @@ async function run() {
   if (
     !webSearch?.replacesFrameworkTool ||
     !webExtract ||
+    !currentTime ||
     !publishArtifacts ||
     !["deep-research", "tavily", "external-writing"].every((name) =>
       skillNames.has(name),
     )
   ) {
-    throw new Error("Eve manifest 缺少 typed Tavily tools 或完整 Skill Bundle");
+    throw new Error("Eve manifest 缺少 trusted time、typed Tavily tools 或完整 Skill Bundle");
   }
   if (!eveInfo.tools?.disabledFramework?.includes("bash")) {
     throw new Error("Eve manifest 未禁用 built-in bash");
